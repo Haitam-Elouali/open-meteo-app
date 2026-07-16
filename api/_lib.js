@@ -1,9 +1,8 @@
 // Shared helpers for both the local Express server (server.js) and Vercel
 // serverless functions under /api. Centralizes the upstream fetch + cache and
 // the Israel filter so behavior is identical in both environments.
-
-const nodeFetch = import('node-fetch').then((m) => m.default);
-const fetch = (...args) => nodeFetch.then((f) => f(...args));
+// Uses the built-in global fetch (Node 18+ / Vercel Node 24 runtime) so there
+// is no ESM-only dependency to bundle.
 
 const apiCache = new Map();
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -26,4 +25,4 @@ function isBlockedCountry(country) {
   return BLOCKED_COUNTRIES.has((country || '').trim());
 }
 
-module.exports = { cachedFetchJson, isBlockedCountry, fetch };
+module.exports = { cachedFetchJson, isBlockedCountry };

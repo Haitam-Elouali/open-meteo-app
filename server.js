@@ -1,10 +1,7 @@
 const express = require('express');
 const path = require('path');
 
-// node-fetch v3 is ESM-only; import it once and reuse the promise for every request
-// (previously each request paid the cost of a fresh dynamic import()).
-const nodeFetch = import('node-fetch').then((m) => m.default);
-const fetch = (...args) => nodeFetch.then((f) => f(...args));
+// Uses the built-in global fetch (Node 18+). No external HTTP dependency.
 
 // Simple in-memory cache for proxied upstream responses. Weather, geocoding and
 // air-quality data change slowly, so caching cuts latency and external load.
