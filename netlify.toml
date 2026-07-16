@@ -1,0 +1,74 @@
+[build]
+  command = "npm install"
+  publish = "src"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/health"
+  status = 200
+
+[[redirects]]
+  from = "/api/weather"
+  to = "/.netlify/functions/weather"
+  status = 200
+
+[[redirects]]
+  from = "/api/hourly"
+  to = "/.netlify/functions/hourly"
+  status = 200
+
+[[redirects]]
+  from = "/api/details"
+  to = "/.netlify/functions/details"
+  status = 200
+
+[[redirects]]
+  from = "/api/forecast"
+  to = "/.netlify/functions/forecast"
+  status = 200
+
+[[redirects]]
+  from = "/api/air"
+  to = "/.netlify/functions/air"
+  status = 200
+
+[[redirects]]
+  from = "/api/reverse"
+  to = "/.netlify/functions/reverse"
+  status = 200
+
+[[redirects]]
+  from = "/api/location"
+  to = "/.netlify/functions/location"
+  status = 200
+
+[[redirects]]
+  from = "/api/favorites"
+  to = "/.netlify/functions/favorites"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/pages/dashboard/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/hourly"
+  to = "/pages/dashboard/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/details"
+  to = "/pages/details/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/settings"
+  to = "/pages/settings/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/pages/home/index.html"
+  status = 200

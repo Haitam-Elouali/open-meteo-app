@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/logo.png">
+
+    <!-- loading font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@200;400;500&display=swap" rel="stylesheet">
+
+    <!-- loading components -->
+    <link href="/components/global.css" rel="stylesheet">
+    <link href="/components/header/header.css?v=2" rel="stylesheet">
+    <link href="/components/weather card/weather-card.css" rel="stylesheet">
+
+    <script type="module" src="/pages/home/api-client.js?v=4"></script>
+    <script defer src="/components/units.js"></script>
+    <script defer src="/components/i18n.js"></script>
+    <script defer src="/components/weather card/weather-card.js?v=5"></script>
+    <script defer src="/components/header/header.js"></script>
+    <script defer src="/components/location-modal.js"></script>
+    <script defer src="/components/settings-modal.js"></script>
+
+
+    <title>Open Meteo</title>
+</head>
+
+<body>
+    <header class="header">
+        <div class="header__left">
+            <div class="header__logo">
+                <img src="/static/logo.png" width="40" height="40" alt="open meteo image">
+            </div>
+            <span class="header__site-name">Open Meteo</span>
+        </div>
+
+        <nav class="header__nav">
+            <a href="/" class="header__nav-link header__nav-link--active" data-i18n="nav.home">Home</a>
+            <a href="/dashboard" class="header__nav-link" data-i18n="nav.dashboard">Dashboard</a>
+            <a href="/details" class="header__nav-link" data-i18n="nav.forecast">Details</a>
+        </nav>
+
+        <div class="header__right-controls">
+            <button class="header__geo-button" type="button" data-i18n-title="header.geoTitle" title="Choose location">
+                <img src="/static/gps.png" width="28" height="28" alt="location image">
+            </button>
+
+            <button class="header__settings-button" type="button" data-i18n-title="header.settingsTitle" title="Settings" id="settings-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="settings-modal-backdrop" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true">
+            <div class="settings-modal-header">
+                <h2 data-i18n="settings.title">Settings</h2>
+                <button class="settings-modal-close" type="button">&times;</button>
+            </div>
+            <div class="settings-modal-body">
+                <section class="settings-section">
+                    <h3 data-i18n="settings.appearance">Appearance</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                        <span data-i18n="settings.theme">Theme</span>
+                    </label>
+                    <select class="settings-select" id="theme-select">
+                        <option value="weather" data-i18n="settings.themeWeather">Weather-based</option>
+                        <option value="light" data-i18n="settings.themeLight">Light</option>
+                        <option value="dark" data-i18n="settings.themeDark">Dark</option>
+                    </select>
+                </section>
+                <section class="settings-section">
+                    <h3 data-i18n="settings.units">Units</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                        </svg>
+                        <span data-i18n="settings.temperature">Temperature</span>
+                    </label>
+                    <select class="settings-select" id="temp-unit-select">
+                        <option value="c" data-i18n="settings.unitC">Celsius (°C)</option>
+                        <option value="f" data-i18n="settings.unitF">Fahrenheit (°F)</option>
+                    </select>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
+                        </svg>
+                        <span data-i18n="settings.windSpeed">Wind Speed</span>
+                    </label>
+                    <select class="settings-select" id="wind-unit-select">
+                        <option value="kmh" data-i18n="settings.windKmh">km/h</option>
+                        <option value="mph" data-i18n="settings.windMph">mph</option>
+                    </select>
+                </section>
+                <section class="settings-section">
+                    <h3 data-i18n="settings.language">Language</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        <span data-i18n="settings.uiLanguage">UI Language</span>
+                    </label>
+                    <select class="settings-select" id="settings-lang-select">
+                        <option value="en" data-i18n="lang.en">English</option>
+                        <option value="fr" data-i18n="lang.fr">Français</option>
+                        <option value="es" data-i18n="lang.es">Español</option>
+                        <option value="ar" data-i18n="lang.ar">العربية</option>
+                    </select>
+                </section>
+            </div>
+            <div class="settings-modal-footer">
+                <button class="settings-cancel" type="button" data-i18n="settings.cancel">Cancel</button>
+                <button class="settings-confirm primary" type="button" data-i18n="settings.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="location-modal-backdrop" hidden>
+        <div class="location-modal" role="dialog" aria-modal="true">
+            <h2 data-i18n="location.title">Choose city &amp; country</h2>
+
+            <label data-i18n="location.country">Country</label>
+            <select class="location-country">
+                <option value="">Select a country</option>
+            </select>
+
+            <label data-i18n="location.city">City</label>
+            <select class="location-city" disabled>
+                <option value="">Select a country first</option>
+            </select>
+
+            <div class="location-modal-actions">
+                <button class="location-cancel" data-i18n="location.cancel">Cancel</button>
+                <button class="location-confirm primary" data-i18n="location.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+
+        <!-- Top: location + time -->
+        <div class="card-top-bar">
+            <div class="card-localization">
+                <img src="/static/pin.png" width="40" height="40" alt="localization image">
+                <p class="localization">...</p>
+            </div>
+            <div class="card-time">
+                <img src="/static/clock.png" width="40" height="40" alt="clock image">
+                <p class="time">...</p>
+            </div>
+        </div>
+
+        <!-- Main: temp + icon + details -->
+        <div>
+            <div class="card-main-row">
+                <div class="card-temp">
+                    <p>
+                        0 <span> °C </span>
+                    </p>
+                </div>
+                <div>
+                    <svg class="card-main-weather-icon" width="220" height="220" aria-label="main weather icon"></svg>
+                </div>
+                <div class="card-main-weather-info">
+                    <p><span class="weather-label" data-key="precipitation">Precipitation:</span> <span class="precipitation">...</span></p>
+                    <p><span class="weather-label" data-key="humidity">Humidity:</span> <span class="humidity">...</span></p>
+                    <p><span class="weather-label" data-key="wind">Wind:</span> <span class="wind">...</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sunrise / daylight duration / sunset -->
+        <div class="card-sun-times">
+            <div class="card-sunrise">
+                <img src="/static/weather_sunrise.svg" width="36" height="36" alt="sunrise image">
+                <span class="sunrise-time">xx:xx</span>
+            </div>
+            <div class="sun-duration">--</div>
+            <div class="card-sundown">
+                <img src="/static/weather_sunset.svg" width="36" height="36" alt="sunset image">
+                <span class="sunset-time">xx:xx</span>
+            </div>
+        </div>
+
+        <!-- Rain banner -->
+        <div class="card-rain-banner">
+            <svg class="rainy-weather-icon" width="64" height="64" aria-label="rain icon"></svg>
+            <span class="chance-of-rain">--</span>
+        </div>
+
+        <!-- Forecast -->
+        <div class="weather-info">
+            <div class="date">
+                <span class="date-mon">Mon</span>
+                <span class="date-tue">Tue</span>
+                <span class="date-wed">Wed</span>
+                <span class="date-thu">Thu</span>
+                <span class="date-fri">Fri</span>
+                <span class="date-sat">Sat</span>
+                <span class="date-sun">Sun</span>
+            </div>
+
+            <div class="weather-date">
+                <svg class="weather-mon" width="56" height="56" aria-label="weather mon"></svg>
+                <svg class="weather-tue" width="56" height="56" aria-label="weather tue"></svg>
+                <svg class="weather-wed" width="56" height="56" aria-label="weather wed"></svg>
+                <svg class="weather-thu" width="56" height="56" aria-label="weather thu"></svg>
+                <svg class="weather-fri" width="56" height="56" aria-label="weather fri"></svg>
+                <svg class="weather-sat" width="56" height="56" aria-label="weather sat"></svg>
+                <svg class="weather-sun" width="56" height="56" aria-label="weather sun"></svg>
+            </div>
+
+            <div class="high-temps">
+                <span class="temp-high-mon">?°</span>
+                <span class="temp-high-tue">?°</span>
+                <span class="temp-high-wed">?°</span>
+                <span class="temp-high-thu">?°</span>
+                <span class="temp-high-fri">?°</span>
+                <span class="temp-high-sat">?°</span>
+                <span class="temp-high-sun">?°</span>
+            </div>
+
+            <div class="low-temps">
+                <span class="temp-low-mon">?°</span>
+                <span class="temp-low-tue">?°</span>
+                <span class="temp-low-wed">?°</span>
+                <span class="temp-low-thu">?°</span>
+                <span class="temp-low-fri">?°</span>
+                <span class="temp-low-sat">?°</span>
+                <span class="temp-low-sun">?°</span>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
+

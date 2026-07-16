@@ -1,0 +1,342 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 620px;
+    min-height: 620px;
+    padding: 28px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    margin-left: auto;
+    margin-right: auto;
+    border-radius: 24px;
+    background: rgba(15, 23, 42, 0.12);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-localization,
+.card-time {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-time {
+    margin-right: 0;
+}
+
+.card-main-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.card-temp {
+    display: flex;
+    align-items: flex-start;
+}
+
+.card-temp p {
+    font-size: 96px;
+    line-height: 1;
+    font-variation-settings: "wdth" 100;
+    font-weight: 200;
+}
+
+.card-temp p span {
+    font-size: 32px;
+    vertical-align: text-top;
+}
+
+.card-main-weather-icon {
+    width: 220px;
+    height: 220px;
+    flex-shrink: 0;
+}
+
+.card-main-weather-info {
+    text-align: left;
+    font-size: 16px;
+    opacity: 0.8;
+    font-weight: 200;
+}
+
+.card-main-weather-info p {
+    font-size: 16px;
+    margin-bottom: 2px;
+    text-align: left;
+    font-weight: 200;
+}
+
+.card-main-weather-info .weather-label {
+    display: inline-block;
+    min-width: 110px;
+}
+
+/* RTL: align labels to the right and mirror the inline label column */
+[dir="rtl"] .card-main-weather-info {
+    text-align: right;
+}
+
+[dir="rtl"] .card-main-weather-info p {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Keep each metric's label and value on the same line in RTL so they never
+   wrap onto separate rows. */
+[dir="rtl"] .card-main-weather-info .weather-label {
+    min-width: 0;
+    white-space: nowrap;
+}
+
+[dir="rtl"] .card-main-weather-info .precipitation,
+[dir="rtl"] .card-main-weather-info .humidity,
+[dir="rtl"] .card-main-weather-info .wind {
+    white-space: nowrap;
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+/* The main temperature reading (number + degree/unit) stays LTR in Arabic so
+   "24 °C" always reads left-to-right regardless of document direction. */
+[dir="rtl"] .card-temp {
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+.card-main-weather-info p:last-child {
+    margin-bottom: 0;
+}
+
+.card-sun-times {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    opacity: 0.85;
+    padding: 0 8px;
+    font-weight: 200;
+}
+
+.card-sunrise,
+.card-sundown {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 200;
+}
+
+.card-sunrise img,
+.card-sundown img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    vertical-align: middle;
+}
+
+/* RTL mirror: directional glyphs (pin/clock/sunrise/sunset) point the
+   correct way when the document reads right-to-left. */
+[dir="rtl"] .card-localization img,
+[dir="rtl"] .card-time img,
+[dir="rtl"] .card-sunrise img,
+[dir="rtl"] .card-sundown img {
+    transform: scaleX(-1);
+}
+
+.sun-duration {
+    font-size: 16px;
+    text-align: center;
+    font-weight: 200;
+}
+
+.card-rain-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 20px;
+    padding: 12px 16px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.rainy-weather-icon {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+}
+
+.weather-info {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    text-align: center;
+    font-size: 16px;
+    margin-top: 8px;
+}
+
+.weather-info > * {
+    display: contents;
+}
+
+/* RTL: the 7-day strip should read right-to-left (first column on the right) */
+[dir="rtl"] .weather-info {
+    direction: rtl;
+}
+
+.date {
+    font-size: 14px;
+    opacity: 0.85;
+    margin-bottom: 4px;
+}
+
+.high-temps {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.low-temps {
+    font-size: 16px;
+    opacity: 0.5;
+}
+
+.weather-date {
+    margin-bottom: 4px;
+}
+
+.weather-date svg {
+    width: 56px;
+    height: 56px;
+    display: block;
+    margin: 0 auto;
+}
+
+.location-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.location-modal-backdrop[hidden] {
+    display: none !important;
+}
+
+.location-modal {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 24px;
+    width: 90%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    color: white;
+}
+
+.location-modal h2 {
+    font-size: 20px;
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.location-modal label {
+    font-size: 14px;
+    opacity: 0.8;
+    display: block;
+    margin-bottom: 6px;
+    margin-top: 12px;
+}
+
+.location-modal input,
+.location-modal select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(15, 23, 42, 0.6);
+    color: white;
+    outline: none;
+}
+
+.location-modal select option {
+    background-color: #0f172a;
+    color: white;
+}
+
+.location-modal input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.location-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.location-modal-actions button {
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    font-size: 14px;
+}
+
+.location-modal-actions button.primary {
+    background: white;
+    color: #0f172a;
+}
+
+/* ---- RTL support (Arabic) ---- */
+/* Flex rows with space-between/gap already flip with dir="rtl". The blocks
+   below only handle things flexbox does not flip automatically. */
+
+/* The main metric block: keep temp on the reading-start side in RTL. */
+[dir="rtl"] .card-main-row {
+    flex-direction: row-reverse;
+}
+
+/* Sunrise/sunset order reads right-to-left in RTL. */
+[dir="rtl"] .card-sun-times {
+    flex-direction: row-reverse;
+}
+
+/* Rain banner: keep the icon on the reading-start side. */
+[dir="rtl"] .card-rain-banner {
+    flex-direction: row-reverse;
+}
+
+/* Day strip and metric columns flow right-to-left so "today" sits on the
+   right edge, matching RTL reading order. */
+[dir="rtl"] .weather-info {
+    direction: rtl;
+}
+
+/* Forecast / main weather icons can contain directional elements (rain,
+   wind streaks). Mirror them under RTL so motion reads naturally. */
+[dir="rtl"] .weather-date svg,
+[dir="rtl"] .card-main-weather-icon,
+[dir="rtl"] .rainy-weather-icon {
+    transform: scaleX(-1);
+}
