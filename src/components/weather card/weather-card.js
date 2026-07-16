@@ -37,51 +37,18 @@ const COUNTRIES = [
   "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
 
+// One deterministic, pure-nature image per weather theme. Using a single
+// image per theme (instead of a random pick) keeps the background identical
+// across every page (home, dashboard, details) for the same weather.
 const WEATHER_BACKGROUNDS = {
-  clear: [
-    '/static/weather-bg-sky-clear.jpg',
-    '/static/weather-bg-sky-clear-2.jpg',
-    '/static/weather-bg-sky-clear-3.jpg',
-    '/static/weather-bg-sky-clear-5.jpg'
-  ],
-  partly: [
-    '/static/weather-bg-partly-2.jpg'
-  ],
-  cloudy: [
-    '/static/weather-bg-sky-cloudy.jpg',
-    '/static/weather-bg-cloudy-2.jpg',
-    '/static/weather-bg-cloudy-3.jpg',
-    '/static/weather-bg-cloudy-5.jpg'
-  ],
-  rain: [
-    '/static/weather-bg-rain.jpg',
-    '/static/weather-bg-rain-2.jpg',
-    '/static/weather-bg-rain-3.jpg',
-    '/static/weather-bg-rain-4.jpg',
-    '/static/weather-bg-rain-5.jpg'
-  ],
-  snow: [
-    '/static/weather-bg-snow.jpg',
-    '/static/weather-bg-snow-2.jpg',
-    '/static/weather-bg-snow-3.jpg',
-    '/static/weather-bg-snow-4.jpg'
-  ],
-  storm: [
-    '/static/weather-bg-storm.jpg',
-    '/static/weather-bg-storm-2.jpg',
-    '/static/weather-bg-storm-3.jpg',
-    '/static/weather-bg-storm-4.jpg',
-    '/static/weather-bg-storm-5.jpg'
-  ],
-  fog: [
-    '/static/weather-bg-fog-1.jpg',
-    '/static/weather-bg-fog-2.jpg'
-  ],
-  night: [
-    '/static/weather-bg-night-1.jpg',
-    '/static/weather-bg-night-2.jpg',
-    '/static/weather-bg-night-3.jpg'
-  ]
+  clear: ['/static/bg-clear.jpg'],
+  partly: ['/static/bg-partly.jpg'],
+  cloudy: ['/static/bg-cloudy.jpg'],
+  rain: ['/static/bg-rain.jpg'],
+  snow: ['/static/bg-snow.jpg'],
+  storm: ['/static/bg-storm.jpg'],
+  fog: ['/static/bg-fog.jpg'],
+  night: ['/static/bg-night.jpg']
 };
 
 const DAY_NAMES = {
