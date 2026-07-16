@@ -1,25 +1,16 @@
 (function () {
-  // One deterministic, pure-nature image per weather theme. Mirrors the map in
-  // weather-card.js so every page shows the same background for the same weather.
-  const WEATHER_BACKGROUNDS = {
-    clear: ['/static/bg-clear.jpg'],
-    partly: ['/static/bg-partly.jpg'],
-    cloudy: ['/static/bg-cloudy.jpg'],
-    rain: ['/static/bg-rain.jpg'],
-    snow: ['/static/bg-snow.jpg'],
-    storm: ['/static/bg-storm.jpg'],
-    fog: ['/static/bg-fog.jpg'],
-    night: ['/static/bg-night.jpg']
+  // A single solid color per weather theme (no images). Mirrors WEATHER_COLORS
+  // in weather-card.js so every page shows the same background for same weather.
+  const WEATHER_COLORS = {
+    clear: '#2a7fd4',
+    partly: '#5a9bd8',
+    cloudy: '#7c8a99',
+    rain: '#4a5560',
+    snow: '#9fb3c8',
+    storm: '#2b3242',
+    fog: '#aab4bd',
+    night: '#0b1224'
   };
-
-  function preloadImage(url) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(url);
-      img.onerror = () => resolve(null);
-      img.src = url;
-    });
-  }
 
   function chooseTheme({ is_day, temperature, precipitation, weatherCode }) {
     const code = Number(weatherCode) || 0;
@@ -55,15 +46,10 @@
       return;
     }
 
-    const options = WEATHER_BACKGROUNDS[chooseTheme(data || {})];
-    if (!options || !options.length) return;
-    const url = options[Math.floor(Math.random() * options.length)];
-
-    const loaded = await preloadImage(url);
-    if (loaded) {
-      body.style.backgroundColor = '';
-      body.style.backgroundImage = `url(${url})`;
-    }
+    const color = WEATHER_COLORS[chooseTheme(data || {})];
+    if (!color) return;
+    body.style.backgroundImage = 'none';
+    body.style.backgroundColor = color;
   }
 
   function injectSprite() {

@@ -37,18 +37,17 @@ const COUNTRIES = [
   "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
 
-// One deterministic, pure-nature image per weather theme. Using a single
-// image per theme (instead of a random pick) keeps the background identical
-// across every page (home, dashboard, details) for the same weather.
-const WEATHER_BACKGROUNDS = {
-  clear: ['/static/bg-clear.jpg'],
-  partly: ['/static/bg-partly.jpg'],
-  cloudy: ['/static/bg-cloudy.jpg'],
-  rain: ['/static/bg-rain.jpg'],
-  snow: ['/static/bg-snow.jpg'],
-  storm: ['/static/bg-storm.jpg'],
-  fog: ['/static/bg-fog.jpg'],
-  night: ['/static/bg-night.jpg']
+// A single solid color per weather theme (no images). Keeps the background
+// identical across every page (home, dashboard, details) for the same weather.
+const WEATHER_COLORS = {
+  clear: '#2a7fd4',
+  partly: '#5a9bd8',
+  cloudy: '#7c8a99',
+  rain: '#4a5560',
+  snow: '#9fb3c8',
+  storm: '#2b3242',
+  fog: '#aab4bd',
+  night: '#0b1224'
 };
 
 const DAY_NAMES = {
@@ -340,16 +339,10 @@ async function setWeatherBackground({ is_day, temperature, precipitation, weathe
     return 'clear';
   })();
 
-  const options = WEATHER_BACKGROUNDS[theme];
-  if (!options || !options.length) return;
-  const url = options[Math.floor(Math.random() * options.length)];
-
-  try {
-    await preloadImage(url);
-  } catch (e) {
-    return;
-  }
-  body.style.backgroundImage = `url(${url})`;
+  const color = WEATHER_COLORS[theme];
+  if (!color) return;
+  body.style.backgroundImage = 'none';
+  body.style.backgroundColor = color;
 }
 
 function computeDayLabels(langCode, now = new Date()) {
