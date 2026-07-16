@@ -37,3 +37,4 @@ exports.handler = async (event) => {
     return json(500, { error: String(e?.message || e) });
   }
 };
+// test
