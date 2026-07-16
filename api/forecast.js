@@ -1,4 +1,4 @@
-const { cachedFetchJson } = require('../_lib');
+const { cachedFetchJson } = require('./helpers');
 
 module.exports = async (req, res) => {
   const { lat, lon, days } = req.query;
