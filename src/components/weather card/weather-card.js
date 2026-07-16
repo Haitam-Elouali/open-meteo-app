@@ -41,14 +41,14 @@ const COUNTRIES = [
 // image per theme (instead of a random pick) keeps the background identical
 // across every page (home, dashboard, details) for the same weather.
 const WEATHER_BACKGROUNDS = {
-  clear: ['/static/bg-clear.svg'],
-  partly: ['/static/bg-partly.svg'],
-  cloudy: ['/static/bg-cloudy.svg'],
-  rain: ['/static/bg-rain.svg'],
-  snow: ['/static/bg-snow.svg'],
-  storm: ['/static/bg-storm.svg'],
-  fog: ['/static/bg-fog.svg'],
-  night: ['/static/bg-night.svg']
+  clear: ['/static/bg-clear.jpg'],
+  partly: ['/static/bg-partly.jpg'],
+  cloudy: ['/static/bg-cloudy.jpg'],
+  rain: ['/static/bg-rain.jpg'],
+  snow: ['/static/bg-snow.jpg'],
+  storm: ['/static/bg-storm.jpg'],
+  fog: ['/static/bg-fog.jpg'],
+  night: ['/static/bg-night.jpg']
 };
 
 const DAY_NAMES = {

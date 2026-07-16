@@ -2,14 +2,14 @@
   // One deterministic, pure-nature image per weather theme. Mirrors the map in
   // weather-card.js so every page shows the same background for the same weather.
   const WEATHER_BACKGROUNDS = {
-    clear: ['/static/bg-clear.svg'],
-    partly: ['/static/bg-partly.svg'],
-    cloudy: ['/static/bg-cloudy.svg'],
-    rain: ['/static/bg-rain.svg'],
-    snow: ['/static/bg-snow.svg'],
-    storm: ['/static/bg-storm.svg'],
-    fog: ['/static/bg-fog.svg'],
-    night: ['/static/bg-night.svg']
+    clear: ['/static/bg-clear.jpg'],
+    partly: ['/static/bg-partly.jpg'],
+    cloudy: ['/static/bg-cloudy.jpg'],
+    rain: ['/static/bg-rain.jpg'],
+    snow: ['/static/bg-snow.jpg'],
+    storm: ['/static/bg-storm.jpg'],
+    fog: ['/static/bg-fog.jpg'],
+    night: ['/static/bg-night.jpg']
   };
 
   function preloadImage(url) {
