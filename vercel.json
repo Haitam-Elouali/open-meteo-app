@@ -1,7 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "framework": null,
   "outputDirectory": "src",
-  "buildCommand": "echo 'no build'",
+  "buildCommand": "echo 'static site + api functions'",
   "rewrites": [
     { "source": "/dashboard", "destination": "/pages/dashboard/index.html" },
     { "source": "/hourly", "destination": "/pages/dashboard/index.html" },
