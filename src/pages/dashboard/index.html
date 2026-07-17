@@ -118,15 +118,12 @@
 
     <div class="page">
         <div class="dashboard-grid">
-            <!-- Air quality (additional Open-Meteo endpoint) -->
-            <section class="card db-air" id="air-card" hidden>
-                <div class="db-air-header">
-                    <h2 data-i18n="dashboard.airQuality">Air Quality</h2>
-                    <span class="db-air-domain" id="air-domain">auto</span>
-                </div>
-                <div class="db-air-loc" id="dashboard-location"></div>
-                <div class="db-air-grid" id="air-grid"></div>
-            </section>
+            <div class="card db-location" id="dashboard-location-card">
+                <span class="db-loc-pin" aria-hidden="true">
+                    <img src="/static/pin.png" width="22" height="22" alt="">
+                </span>
+                <span class="db-loc-text" id="dashboard-location"></span>
+            </div>
 
             <div class="card db-widget">
                 <h3 data-i18n="dashboard.temp24">Temperature (24h)</h3>

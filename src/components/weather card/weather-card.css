@@ -40,6 +40,111 @@
     justify-content: space-between;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 560px) {
+    .card {
+        padding: 18px;
+        min-height: unset;
+        border-radius: 18px;
+    }
+
+    .card-main-row {
+        justify-content: center;
+        gap: 10px 18px;
+    }
+
+    .card-temp {
+        order: 1;
+    }
+
+    .card-main-weather-icon {
+        order: 2;
+        width: 120px;
+        height: 120px;
+    }
+
+    .card-temp p {
+        font-size: 72px;
+    }
+
+    .card-temp p span {
+        font-size: 26px;
+    }
+
+    .card-main-weather-info {
+        order: 3;
+        width: 100%;
+        text-align: center;
+    }
+
+    .card-main-weather-info p {
+        text-align: center;
+    }
+
+    .card-main-weather-info .weather-label {
+        display: inline;
+    }
+
+    .weather-info {
+        gap: 4px;
+    }
+
+    .weather-info > * {
+        display: contents;
+    }
+
+    .high-temps, .low-temps, .date {
+        font-size: 13px;
+    }
+
+    .weather-date svg {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+@media (max-width: 380px) {
+    .card-temp p {
+        font-size: 60px;
+    }
+}
+
+@media (max-width: 560px) {
+    .card-top-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+    }
+
+    .card-localization,
+    .card-time {
+        font-size: 14px;
+    }
+
+    .card-localization img,
+    .card-time img {
+        width: 28px;
+        height: 28px;
+    }
+
+    .card-sun-times {
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .card-sun-times .sun-duration {
+        order: 3;
+        width: 100%;
+    }
+
+    .card-rain-banner {
+        flex-wrap: wrap;
+        text-align: center;
+    }
 }
 
 .card-temp {

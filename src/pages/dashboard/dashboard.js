@@ -27,17 +27,6 @@
 
   function conditionText(code) { return WEATHER_TEXT[Number(code)] || 'Unknown'; }
 
-  function aqiCategory(aqi) {
-    if (aqi == null) return '';
-    const v = Number(aqi);
-    if (v <= 50) return '#86efac';
-    if (v <= 100) return '#fde047';
-    if (v <= 150) return '#fb923c';
-    if (v <= 200) return '#f87171';
-    if (v <= 300) return '#c084fc';
-    return '#f472b6';
-  }
-
   function getLatLon() {
     let lat = Number(window.__lastLatLon?.lat);
     let lon = Number(window.__lastLatLon?.lon);
@@ -58,43 +47,11 @@
     return { lat, lon };
   }
 
-  function renderAir(airData, domains) {
-    const card = $('#air-card');
-    const grid = $('#air-grid');
-    if (!card || !grid) return;
-    const d = airData?.data || {};
-    if (d.error || !d.current) { card.hidden = true; return; }
-    const cur = d.current;
-    card.hidden = false;
-    const domainLabel = window.I18n?.DICT?.[window.I18n.getLang()]?.dashboard?.domain || 'domain:';
-    $('#air-domain').textContent = `${domainLabel} ${domains}`;
-
-    const aqi = cur.us_aqi ?? cur.european_aqi;
-    const aqiLabel = cur.us_aqi != null ? 'US AQI' : 'EU AQI';
-    const stats = [
-      { label: aqiLabel, value: aqi != null ? Math.round(aqi) : '—', sub: aqiCategory(aqi) },
-      { label: 'PM2.5', value: cur.pm2_5 != null ? Math.round(cur.pm2_5) : '—', sub: 'µg/m³' },
-      { label: 'PM10', value: cur.pm10 != null ? Math.round(cur.pm10) : '—', sub: 'µg/m³' },
-      { label: 'Ozone', value: cur.ozone != null ? Math.round(cur.ozone) : '—', sub: 'µg/m³' },
-      { label: 'NO₂', value: cur.nitrogen_dioxide != null ? Math.round(cur.nitrogen_dioxide) : '—', sub: 'µg/m³' },
-      { label: 'SO₂', value: cur.sulphur_dioxide != null ? Math.round(cur.sulphur_dioxide) : '—', sub: 'µg/m³' },
-      { label: 'CO', value: cur.carbon_monoxide != null ? Math.round(cur.carbon_monoxide) : '—', sub: 'µg/m³' },
-      { label: 'Dust', value: cur.dust != null ? Math.round(cur.dust) : '—', sub: 'µg/m³' }
-    ];
-
-    grid.innerHTML = stats.map((s) => `
-      <div class="db-air-stat">
-        <div class="db-air-stat-label">${s.label}</div>
-        <div class="db-air-stat-value">${s.value}</div>
-        <div class="db-air-stat-sub" style="color:${s.sub && s.sub.startsWith('#') ? s.sub : 'rgba(255,255,255,0.5)'}">${s.sub && !s.sub.startsWith('#') ? s.sub : ''}</div>
-      </div>
-    `).join('');
-  }
-
   function drawChart(containerId, values, options = {}) {
     const container = document.getElementById(containerId);
     if (!container) return;
     const { color, label } = options;
+    const lineColor = color || 'rgba(96,165,250,0.85)';
     const canvas = document.createElement('canvas');
     const tooltip = document.createElement('div');
     tooltip.className = 'dashboard-tooltip';
@@ -105,6 +62,23 @@
     const ctx = canvas.getContext && canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const data = (values || []).map((v) => Number(v) || 0);
+
+    function pointX(i, chartW) {
+      const n = data.length;
+      if (n <= 1) return padLeft + chartW / 2;
+      return padLeft + (chartW * i) / (n - 1);
+    }
+
+    let padLeft = 36, padRight = 8, padTop = 12, padBottom = 20;
+
+    // Keep a stable reference so we can remove the resize/load listeners before
+    // re-rendering (drawChart is called once per chart on every location change,
+    // and we must not accumulate global listeners -> memory leak + redundant paints).
+    const renderRef = () => render();
+    if (container.__chartRender) {
+      window.removeEventListener('resize', container.__chartRender);
+    }
+    container.__chartRender = renderRef;
 
     function render() {
       if (!ctx) return;
@@ -118,14 +92,15 @@
       ctx.clearRect(0, 0, w, h);
       if (!data.length) return;
 
-      const padLeft = 36, padRight = 8, padTop = 12, padBottom = 20;
       const chartW = w - padLeft - padRight;
       const chartH = h - padTop - padBottom;
       const maxVal = Math.max(...data, 1);
       const minVal = Math.min(...data, 0);
       const range = maxVal - minVal || 1;
-      const barW = Math.max(3, chartW / data.length - 3);
 
+      const yFor = (v) => padTop + chartH - ((v - minVal) / range) * chartH;
+
+      // Horizontal grid lines
       ctx.strokeStyle = 'rgba(255,255,255,0.08)';
       ctx.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {
@@ -133,16 +108,51 @@
         ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + chartW, y); ctx.stroke();
       }
 
-      const grad = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
-      grad.addColorStop(0, color || 'rgba(96,165,250,0.85)');
-      grad.addColorStop(1, (color || 'rgba(96,165,250,0.85)').replace(/[\d.]+\)$/, '0.25)'));
+      // Build a smooth (monotone-ish cubic) curve through the points.
+      const pts = data.map((v, i) => ({ x: pointX(i, chartW), y: yFor(v) }));
 
-      data.forEach((val, i) => {
-        const x = padLeft + (chartW / data.length) * i + (chartW / data.length - barW) / 2;
-        const barH = (val - minVal) / range * chartH;
-        const y = padTop + chartH - barH;
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, y, barW, barH);
+      function buildPath() {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i - 1] || pts[i];
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          const p3 = pts[i + 2] || p2;
+          const t = 0.18; // smoothing tension
+          const cp1x = p1.x + (p2.x - p0.x) * t;
+          const cp1y = p1.y + (p2.y - p0.y) * t;
+          const cp2x = p2.x - (p3.x - p1.x) * t;
+          const cp2y = p2.y - (p3.y - p1.y) * t;
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+      }
+
+      // Gradient fill under the curve
+      const grad = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
+      grad.addColorStop(0, lineColor.replace(/[\d.]+\)$/, '0.35)'));
+      grad.addColorStop(1, lineColor.replace(/[\d.]+\)$/, '0.02)'));
+      buildPath();
+      ctx.lineTo(pts[pts.length - 1].x, padTop + chartH);
+      ctx.lineTo(pts[0].x, padTop + chartH);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Smooth curve stroke
+      buildPath();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // Data point dots
+      ctx.fillStyle = lineColor;
+      pts.forEach((p) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
       });
 
       const step = Math.max(1, Math.floor(data.length / 6));
@@ -151,30 +161,35 @@
       ctx.textAlign = 'center';
       data.forEach((_, i) => {
         if (i % step === 0) {
-          const x = padLeft + (chartW / data.length) * (i + 0.5);
-          ctx.fillText(`${i}h`, x, padTop + chartH + 13);
+          ctx.fillText(`${i}h`, pointX(i, chartW), padTop + chartH + 13);
         }
       });
 
       canvas.onmousemove = (evt) => {
         const rect = canvas.getBoundingClientRect();
-        const idx = Math.floor((evt.clientX - rect.left - padLeft) / (chartW / data.length));
-        if (idx >= 0 && idx < data.length) {
+        const mx = evt.clientX - rect.left;
+        const n = data.length;
+        let idx = n <= 1 ? 0 : Math.round(((mx - padLeft) / chartW) * (n - 1));
+        idx = Math.max(0, Math.min(n - 1, idx));
+        if (mx >= padLeft - 6 && mx <= padLeft + chartW + 6) {
           tooltip.innerHTML = `<strong>${idx}h</strong><br>${label}: ${data[idx]}`;
           tooltip.style.display = 'block';
-          tooltip.style.left = `${evt.clientX - rect.left + 10}px`;
-          tooltip.style.top = `${evt.clientY - rect.top + 10}px`;
+          tooltip.style.left = `${Math.min(Math.max(mx + 10, 4), w - 80)}px`;
+          tooltip.style.top = `${Math.max(pts[idx].y - 30, 4)}px`;
         }
       };
       canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
     }
 
     // Defer the first paint until after layout/paint so the container has a
-    // measurable size; otherwise getBoundingClientRect() can be 0 and no bars
-    // are drawn (chart looks empty). Also re-render on full load (fonts etc.).
-    requestAnimationFrame(render);
-    window.addEventListener('load', render);
-    window.addEventListener('resize', render);
+    // measurable size; otherwise getBoundingClientRect() can be 0 and the chart
+    // looks empty. Re-render on resize (deduped via container.__chartRender)
+    // and once after full load (fonts etc.).
+    requestAnimationFrame(renderRef);
+    if (document.readyState !== 'complete') {
+      window.addEventListener('load', renderRef, { once: true });
+    }
+    window.addEventListener('resize', renderRef);
   }
 
   function next24(arr, times) {
@@ -189,15 +204,13 @@
   async function loadDashboard() {
     const { lat, lon } = getLatLon();
     try {
-      const [weather, hourly, air, rev] = await Promise.all([
+      const [weather, hourly, rev] = await Promise.all([
         fetch(`/api/weather?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch(() => ({})),
         fetch(`/api/hourly?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch(() => ({})),
-        fetch(`/api/air?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch(() => ({})),
         fetch(`/api/reverse?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch(() => ({}))
       ]);
 
       const current = weather?.data?.current || {};
-      renderAir(air?.data ? air : { data: air }, air?.domains || 'auto');
 
       const loc = (rev && (rev.city || rev.country))
         ? [rev.city, rev.country].filter(Boolean).join(', ')

@@ -526,7 +526,7 @@ function wireUI() {
     weatherCode: current.weather_code
   });
 
-  const tempValue = current.apparent_temperature ?? current.temperature_2m;
+  const tempValue = current.temperature_2m;
   const tempP = $('.card-temp p');
   if (tempP) {
     const tempInt = Number.isFinite(tempValue) ? Math.floor(window.Units.temp(tempValue)) : 0;

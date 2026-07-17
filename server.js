@@ -392,6 +392,23 @@ app.get('/api/location', async (req, res) => {
   }
 });
 
+// Cities per country. Serves the curated, comprehensive city lists so the
+// location picker can show every major city for a country (e.g. Morocco).
+const { CITIES_BY_COUNTRY } = require('./src/data/cities');
+
+app.get('/api/cities', (req, res) => {
+  try {
+    const country = String(req.query.country || '').trim();
+    if (!country) {
+      return res.status(400).json({ error: 'country is required' });
+    }
+    const cities = CITIES_BY_COUNTRY[country] || [];
+    res.json({ country, cities });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
 // Favorites API
 const FAVORITES_KEY = 'open-meteo-favorites';
 let favorites = [];

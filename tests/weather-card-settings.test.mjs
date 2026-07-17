@@ -114,12 +114,12 @@ test('dark theme sets a dark background, light theme a light one', async () => {
 
 test('temperature unit conversion is applied on the card', async () => {
   const f = await bootWith({ 'open-meteo-temp-unit': 'f' });
-  // apparent 19°C -> 66.2°F -> floor 66
-  assert.equal(f.document.querySelector('.card-temp p').childNodes[0].textContent, '66');
+  // main temp is temperature_2m (20°C) -> 68°F -> floor 68
+  assert.equal(f.document.querySelector('.card-temp p').childNodes[0].textContent, '68');
   assert.match(f.document.querySelector('.card-temp p span').textContent, /°F/);
 
   const c = await bootWith({ 'open-meteo-temp-unit': 'c' });
-  assert.equal(c.document.querySelector('.card-temp p').childNodes[0].textContent, '19');
+  assert.equal(c.document.querySelector('.card-temp p').childNodes[0].textContent, '20');
   assert.match(c.document.querySelector('.card-temp p span').textContent, /°C/);
 });
 

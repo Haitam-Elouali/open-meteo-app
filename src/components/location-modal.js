@@ -92,6 +92,19 @@
     return null;
   }
 
+  async function fetchCitiesFromEndpoint(country) {
+    try {
+      const qs = new URLSearchParams({ country });
+      const res = await fetch(`/api/cities?${qs.toString()}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const cities = (data?.cities || []).filter(Boolean);
+      return cities.length ? cities : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function t(key, fallback) {
     try {
       const dict = (window.I18n && window.I18n.DICT) || {};
@@ -193,7 +206,7 @@
     const countrySelect = $('.location-country');
     const citySelect = $('.location-city');
 
-    countrySelect?.addEventListener('change', () => {
+    countrySelect?.addEventListener('change', async () => {
       const country = countrySelect.value;
       if (!citySelect) return;
       if (!country) {
@@ -202,9 +215,18 @@
         return;
       }
 
-      const cities = citiesFor(country);
-      if (cities && cities.length) {
-        populateCities(cities);
+      // Prefer the comprehensive curated city list served by the backend
+      // (covers every major city, e.g. Morocco). Fall back to the local
+      // curated list, then to the live geocoding API.
+      const endpointCities = await fetchCitiesFromEndpoint(country);
+      if (endpointCities && endpointCities.length) {
+        populateCities(endpointCities);
+        return;
+      }
+
+      const localCities = citiesFor(country);
+      if (localCities && localCities.length) {
+        populateCities(localCities);
         return;
       }
 
