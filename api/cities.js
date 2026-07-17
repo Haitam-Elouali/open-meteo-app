@@ -1,4 +1,4 @@
-const { CITIES_BY_COUNTRY } = require('../src/data/cities');
+const { CITIES_BY_COUNTRY } = require('./cities-data');
 
 module.exports = async (req, res) => {
   const country = String(req.query.country || '').trim();

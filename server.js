@@ -394,7 +394,7 @@ app.get('/api/location', async (req, res) => {
 
 // Cities per country. Serves the curated, comprehensive city lists so the
 // location picker can show every major city for a country (e.g. Morocco).
-const { CITIES_BY_COUNTRY } = require('./src/data/cities');
+const { CITIES_BY_COUNTRY } = require('./api/cities-data');
 
 app.get('/api/cities', (req, res) => {
   try {
