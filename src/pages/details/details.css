@@ -21,6 +21,12 @@
     margin: 12px auto 24px;
     padding: 0 16px 48px;
     background: transparent;
+    /* Center the page content (hero, toolbar, forecast card) vertically and
+       horizontally within the viewport. */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: calc(100vh - 160px);
 }
 
 .details-loading {
@@ -274,8 +280,13 @@
 .forecast-scroll {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     position: relative;
+    /* Shrink to the content (arrows + card) and center the block itself. */
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
 }
 
 .forecast-scroll-view {

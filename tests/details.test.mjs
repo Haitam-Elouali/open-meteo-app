@@ -99,3 +99,23 @@ test('forecast card sizes to its content (auto width, capped at container)', asy
   assert.ok(/flex:\s*0\s+1\s+auto/.test(m[1]), `expected flex: 0 1 auto, got: ${m[1].trim()}`);
   assert.ok(/max-width:\s*100%/.test(m[1]), `expected max-width: 100%, got: ${m[1].trim()}`);
 });
+
+test('forecast card is centered horizontally and vertically', async () => {
+  const window = await bootDetails('en');
+  assert.ok(window.document.getElementById('details-daily'), 'forecast card should exist');
+  const fs = await import('fs');
+  const css = fs.readFileSync(`${__dirname}../src/pages/details/details.css`, 'utf8');
+
+  // The page content is vertically centered within the viewport...
+  const page = css.match(/\.page\s*\{([^}]*)\}/);
+  assert.ok(page, '.page rule not found in details.css');
+  assert.ok(/display:\s*flex/.test(page[1]), 'page should be a flex container');
+  assert.ok(/flex-direction:\s*column/.test(page[1]), 'page should be a flex column');
+  assert.ok(/justify-content:\s*center/.test(page[1]), 'page content should be vertically centered');
+
+  // ...and the forecast card block is horizontally centered.
+  const scroll = css.match(/\.forecast-scroll\s*\{([^}]*)\}/);
+  assert.ok(scroll, '.forecast-scroll rule not found in details.css');
+  assert.ok(/justify-content:\s*center/.test(scroll[1]), 'forecast block should center its items horizontally');
+  assert.ok(/margin:\s*0\s+auto/.test(scroll[1]), 'forecast block should be centered (margin: 0 auto)');
+});
