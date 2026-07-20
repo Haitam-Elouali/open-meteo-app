@@ -85,6 +85,10 @@
           return d.getHours() === currentHour;
         }));
 
+        // The window is a rolling 24h span that starts at the current hour and
+        // closes at the SAME hour the next day, so it reads 15:00 -> 15:00.
+        const startHour = currentHour;
+
         const maxPoints = 24;
         const entries = [];
         for (let i = startIdx; i < times.length && entries.length < maxPoints; i++) {
@@ -151,8 +155,13 @@
           const chartH = h - padTop - padBottom;
 
           const tempsV = entries.map((e) => Number(e.temp) || 0);
-          const maxTemp = Math.max(...tempsV, 1);
-          const minTemp = Math.min(...tempsV, 0);
+          let maxTemp = Math.max(...tempsV, 1);
+          let minTemp = Math.min(...tempsV, 0);
+          // Symmetric vertical padding so the temperature line is centered on the
+          // y-axis instead of hugging the top/bottom edges.
+          const tPad = Math.max(1, (maxTemp - minTemp) * 0.18);
+          maxTemp += tPad;
+          minTemp -= tPad;
           const tempRange = maxTemp - minTemp || 1;
 
           const precipsV = entries.map((e) => Number(e.precip) || 0);
@@ -202,9 +211,11 @@
             ctx.arc(x, y, 3, 0, Math.PI * 2);
             ctx.fill();
 
-            // x labels
+            // x labels. The final label marks the 24h boundary, i.e. the SAME
+            // hour the next day, so the axis closes 15:00 -> 15:00.
             const d = new Date(entry.time);
-            const label = `${pad2(d.getHours())}:00`;
+            const isLast = i === entries.length - 1;
+            const label = isLast ? `${pad2(startHour)}:00` : `${pad2(d.getHours())}:00`;
             ctx.fillStyle = 'rgba(255,255,255,0.7)';
             ctx.font = '11px Roboto, sans-serif';
             ctx.textAlign = 'center';
@@ -229,6 +240,18 @@
           ctx.fillStyle = 'rgba(96, 165, 250, 0.8)';
           ctx.fillRect(padLeft + 120, padTop - 16, 16, 8);
             ctx.fillText('Precipitation', padLeft + 142, padTop - 6);
+
+          // Explicit 24h window caption, e.g. "15:00 → 15:00 (24h)". The window
+          // closes at the SAME hour the next day (startHour), so it reads 15:00 -> 15:00.
+          const firstHour = entries.length ? pad2(startHour) + ':00' : '';
+          const windowText = `${firstHour} → ${firstHour} (24h)`;
+          ctx.font = '11px Roboto, Arial, sans-serif';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+          ctx.fillStyle = 'rgba(255,255,255,0.65)';
+          ctx.fillText(windowText, padLeft + chartW, padTop - 6);
+          const chartEl = document.getElementById('hourly-chart');
+          if (chartEl) chartEl.dataset.window = windowText;
 
           // interaction
           canvas.onmousemove = (evt) => {
