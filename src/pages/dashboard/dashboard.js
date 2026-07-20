@@ -236,18 +236,6 @@
           });
         }
 
-        // Explicit 24h window caption, e.g. "15:00 → 15:00 (24h)". Drawn in the
-        // top-right of every diagram so the rolling 24h span is unambiguous.
-        const startLabel = (Array.isArray(series) ? series[0] : series)?.labels?.[0]
-          || (labels && labels[0])
-          || endLabel;
-        const windowText = `${startLabel} → ${endLabel} (24h)`;
-        ctx.font = '11px Roboto, Arial, sans-serif';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = 'rgba(255,255,255,0.65)';
-        ctx.fillText(windowText, padLeft + chartW, padTop - 4);
-        container.dataset.window = windowText;
 
         canvas.onmousemove = (evt) => {
           const rect = canvas.getBoundingClientRect();

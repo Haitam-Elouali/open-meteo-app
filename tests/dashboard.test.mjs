@@ -331,26 +331,32 @@ test('dashboard shows empty state when hourly has no times', async () => {
   assert.ok(c.querySelector('.chart-empty'), 'expected empty-state when no hourly data');
 });
 
-test('every diagram exposes a 24h window caption (HH:00 → HH:00 (24h))', async () => {
+test('every diagram x-axis spans the 24h window (current hour -> same hour)', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
   loadScript(window, 'components/weather-background.js');
   loadScript(window, 'components/capitals-ticker.js');
   loadScript(window, 'pages/dashboard/dashboard.js');
+  const perCanvas = withPerCanvasRecorder(window);
   stubFetch(window);
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
 
   const nowHour = new Date().getHours();
   const sameHour = `${String(nowHour).padStart(2, '0')}:00`;
-  const expected = `${sameHour} → ${sameHour} (24h)`;
 
+  // The on-chart "HH:00 -> HH:00" caption was intentionally removed; the 24h
+  // window is still conveyed by the x-axis first/last labels (current hour ->
+  // same hour next day). Verify those remain.
   const ids = ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart'];
   for (const id of ids) {
     const c = window.document.getElementById(id);
-    assert.ok(c, `missing container ${id}`);
-    assert.equal(c.dataset.window, expected, `24h window caption wrong in ${id}: got ${c.dataset.window}`);
+    const canvas = c && c.querySelector('canvas');
+    const rec = perCanvas.get(canvas) || [];
+    const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
+    assert.equal(xLabels[0].text, sameHour, `start label should be ${sameHour} in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, sameHour, `end label should be ${sameHour} in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 });
 
