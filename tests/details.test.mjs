@@ -82,3 +82,20 @@ test('forecast keeps working in English by default', async () => {
   const firstDay = window.document.querySelector('#details-daily .forecast-col .forecast-col-day');
   assert.equal(firstDay.textContent, 'Today');
 });
+
+test('forecast card sizes to its content (auto width, capped at container)', async () => {
+  const window = await bootDetails('en');
+  const card = window.document.getElementById('details-daily');
+  assert.ok(card, 'forecast card should exist');
+  assert.ok(card.classList.contains('forecast-card') && card.classList.contains('forecast-scroll-view'),
+    'card should carry both forecast-card and forecast-scroll-view classes');
+  // jsdom does not apply external stylesheets, so assert the rule directly in
+  // the source CSS: the combined selector must size to content (flex-grow 0)
+  // and cap the width at 100% so it never crosses the available width.
+  const fs = await import('fs');
+  const css = fs.readFileSync(`${__dirname}../src/pages/details/details.css`, 'utf8');
+  const m = css.match(/\.forecast-card\.forecast-scroll-view\s*\{([^}]*)\}/);
+  assert.ok(m, 'forecast-card.forecast-scroll-view rule not found in details.css');
+  assert.ok(/flex:\s*0\s+1\s+auto/.test(m[1]), `expected flex: 0 1 auto, got: ${m[1].trim()}`);
+  assert.ok(/max-width:\s*100%/.test(m[1]), `expected max-width: 100%, got: ${m[1].trim()}`);
+});
