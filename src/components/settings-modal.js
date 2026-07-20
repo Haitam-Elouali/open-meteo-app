@@ -11,17 +11,14 @@
 
   function syncSettingsModal() {
     try {
-      const theme = localStorage.getItem('open-meteo-theme') || 'weather';
       const tempUnit = localStorage.getItem('open-meteo-temp-unit') || 'c';
       const windUnit = localStorage.getItem('open-meteo-wind-unit') || 'kmh';
       const lang = localStorage.getItem('open-meteo-lang') || 'en';
 
-      const themeSel = getSelect('theme-select');
       const tempSel = getSelect('temp-unit-select');
       const windSel = getSelect('wind-unit-select');
       const langSel = getSelect('settings-lang-select');
 
-      if (themeSel) themeSel.value = theme;
       if (tempSel) tempSel.value = tempUnit;
       if (windSel) windSel.value = windUnit;
       if (langSel) langSel.value = lang;
@@ -45,13 +42,11 @@
   });
 
   confirmBtn?.addEventListener('click', () => {
-    const theme = getSelect('theme-select')?.value || 'weather';
     const tempUnit = getSelect('temp-unit-select')?.value || 'c';
     const windUnit = getSelect('wind-unit-select')?.value || 'kmh';
     const lang = getSelect('settings-lang-select')?.value || 'en';
 
     try {
-      localStorage.setItem('open-meteo-theme', theme);
       localStorage.setItem('open-meteo-temp-unit', tempUnit);
       localStorage.setItem('open-meteo-wind-unit', windUnit);
       localStorage.setItem('open-meteo-lang', lang);
@@ -60,7 +55,7 @@
     }
 
     close();
-    // Reload so units, theme and language are applied everywhere.
+    // Reload so units and language are applied everywhere.
     window.location.reload();
   });
 })();

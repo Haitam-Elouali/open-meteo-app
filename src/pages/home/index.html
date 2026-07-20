@@ -14,12 +14,14 @@
     <link href="/components/global.css" rel="stylesheet">
     <link href="/components/header/header.css?v=2" rel="stylesheet">
     <link href="/components/weather card/weather-card.css" rel="stylesheet">
+    <link href="/components/capitals-ticker.css" rel="stylesheet">
 
     <script type="module" src="/pages/home/api-client.js?v=4"></script>
     <script defer src="/components/units.js"></script>
     <script defer src="/components/i18n.js"></script>
     <script defer src="/components/weather card/weather-card.js?v=5"></script>
     <script defer src="/components/header/header.js"></script>
+    <script defer src="/components/capitals-ticker.js?v=2"></script>
     <script defer src="/components/location-modal.js"></script>
     <script defer src="/components/settings-modal.js"></script>
 
@@ -56,6 +58,10 @@
         </div>
     </header>
 
+    <div class="capitals-ticker" aria-label="Capital cities weather">
+        <div class="capitals-ticker__stage" id="capitals-stage"></div>
+    </div>
+
     <div class="settings-modal-backdrop" hidden>
         <div class="settings-modal" role="dialog" aria-modal="true">
             <div class="settings-modal-header">
@@ -63,21 +69,6 @@
                 <button class="settings-modal-close" type="button">&times;</button>
             </div>
             <div class="settings-modal-body">
-                <section class="settings-section">
-                    <h3 data-i18n="settings.appearance">Appearance</h3>
-                    <label class="settings-label">
-                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="5"/>
-                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                        </svg>
-                        <span data-i18n="settings.theme">Theme</span>
-                    </label>
-                    <select class="settings-select" id="theme-select">
-                        <option value="weather" data-i18n="settings.themeWeather">Weather-based</option>
-                        <option value="light" data-i18n="settings.themeLight">Light</option>
-                        <option value="dark" data-i18n="settings.themeDark">Dark</option>
-                    </select>
-                </section>
                 <section class="settings-section">
                     <h3 data-i18n="settings.units">Units</h3>
                     <label class="settings-label">
@@ -98,7 +89,8 @@
                     </label>
                     <select class="settings-select" id="wind-unit-select">
                         <option value="kmh" data-i18n="settings.windKmh">km/h</option>
-                        <option value="mph" data-i18n="settings.windMph">mph</option>
+                        <option value="kn" data-i18n="settings.windKn">kn</option>
+                        <option value="ms" data-i18n="settings.windMs">m/s</option>
                     </select>
                 </section>
                 <section class="settings-section">

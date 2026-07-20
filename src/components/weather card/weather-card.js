@@ -309,40 +309,13 @@ function applyTranslations(code) {
   if (geoBtn) geoBtn.title = t.geoTitle;
 }
 
-async function setWeatherBackground({ is_day, temperature, precipitation, weatherCode }) {
+// The background is a single static blue on every page, for every country and
+// city, regardless of the weather or any saved preference.
+async function setWeatherBackground() {
   const body = document.body;
   if (!body) return;
-
-  let themePref = 'weather';
-  try { themePref = localStorage.getItem('open-meteo-theme') || 'weather'; } catch (e) {}
-
-  if (themePref === 'light') {
-    body.style.backgroundImage = 'none';
-    body.style.backgroundColor = '#e9edf2';
-    return;
-  }
-  if (themePref === 'dark') {
-    body.style.backgroundImage = 'none';
-    body.style.backgroundColor = '#11151c';
-    return;
-  }
-
-  const theme = (() => {
-    const code = Number(weatherCode) || 0;
-    if (!is_day) return 'night';
-    if ([45, 48].includes(code)) return 'fog';
-    if ((precipitation ?? 0) > 0.1) return 'rain';
-    if ([95, 96, 99].includes(code)) return 'storm';
-    if ([71, 73, 75, 77, 85, 86].includes(code) || (temperature ?? 0) < -0.5) return 'snow';
-    if (code >= 2) return 'cloudy';
-    if (code === 1) return 'partly';
-    return 'clear';
-  })();
-
-  const color = WEATHER_COLORS[theme];
-  if (!color) return;
   body.style.backgroundImage = 'none';
-  body.style.backgroundColor = color;
+  body.style.backgroundColor = '#2a7fd4';
 }
 
 function computeDayLabels(langCode, now = new Date()) {

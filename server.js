@@ -30,9 +30,16 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Serve static frontend (repo is plain files under /src)
+// Serve static frontend (repo is plain files under /src).
+// Caching is disabled (maxAge 0 + no-cache) so edits to HTML/JS take effect
+// immediately without the browser serving a stale, broken previous version.
 const publicDir = path.join(__dirname, 'src');
-app.use(express.static(publicDir, { maxAge: 3600000 }));
+app.use(express.static(publicDir, {
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+}));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ ok: true }));
@@ -394,7 +401,7 @@ app.get('/api/location', async (req, res) => {
 
 // Cities per country. Serves the curated, comprehensive city lists so the
 // location picker can show every major city for a country (e.g. Morocco).
-const { CITIES_BY_COUNTRY } = require('./api/cities-data');
+const { CITIES_BY_COUNTRY } = require('./lib/cities-data');
 
 app.get('/api/cities', (req, res) => {
   try {
@@ -408,6 +415,95 @@ app.get('/api/cities', (req, res) => {
     res.status(500).json({ error: String(e?.message || e) });
   }
 });
+
+// Capital cities (country -> [capital, lat, lon]). Powers the scrolling
+// capitals ticker under the dashboard header.
+const { CAPITALS } = require('./lib/capitals-data');
+
+app.get('/api/capitals', (req, res) => {
+  try {
+    const list = Object.entries(CAPITALS).map(([country, [capital, lat, lon]]) => ({
+      country, capital, lat, lon
+    }));
+    res.json({ capitals: list });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Current weather for every capital, fetched server-side in parallel so the
+// ticker only makes ONE request instead of ~195. Blocked countries are skipped.
+// The aggregated result is cached in-memory (CAPITALS_TTL) so we don't fire
+// ~188 outbound requests on every page load.
+const CAPITALS_TTL_MS = 10 * 60 * 1000;
+let capitalsWeatherCache = { expires: 0, data: null };
+
+// Resolve promises with a bounded concurrency so we never fire ~190 outbound
+// requests at once (which saturates the event loop / network and makes the
+// ticker feel slow). Items run in pools of `size`.
+async function mapWithConcurrency(items, size, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function run() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      try {
+        results[i] = await worker(items[i], i);
+      } catch (e) {
+        results[i] = e;
+      }
+    }
+  }
+  const pool = Array.from({ length: Math.min(size, items.length) }, run);
+  await Promise.all(pool);
+  return results;
+}
+
+async function buildCapitalsWeather() {
+  const entries = Object.entries(CAPITALS).filter(([country]) => !isBlockedCountry(country));
+  // ~190 parallel requests hammer the upstream + the client's first paint.
+  // Limit to 8 in-flight at a time; this keeps latency low without overload.
+  const results = await mapWithConcurrency(entries, 8, async ([country, [capital, lat, lon]]) => {
+    try {
+      const url = new URL('https://api.open-meteo.com/v1/forecast');
+      url.searchParams.set('latitude', String(lat));
+      url.searchParams.set('longitude', String(lon));
+      url.searchParams.set('timezone', 'auto');
+      ['temperature_2m', 'is_day', 'weather_code'].forEach((f) => url.searchParams.append('current', f));
+      const data = await cachedFetchJson(url.toString());
+      const cur = data?.current || {};
+      return {
+        country, capital, lat, lon,
+        temperature: cur.temperature_2m,
+        is_day: cur.is_day,
+        weatherCode: cur.weather_code
+      };
+    } catch (e) {
+      return { country, capital, lat, lon, error: String(e?.message || e) };
+    }
+  });
+  return { capitals: results };
+}
+
+app.get('/api/capitals-weather', async (req, res) => {
+  try {
+    const now = Date.now();
+    if (capitalsWeatherCache.data && capitalsWeatherCache.expires > now) {
+      return res.json(capitalsWeatherCache.data);
+    }
+    const data = await buildCapitalsWeather();
+    capitalsWeatherCache = { expires: now + CAPITALS_TTL_MS, data };
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Pre-warm the capitals-weather cache on boot (fire and forget) so the first
+// visitor doesn't pay the cost of ~188 outbound requests.
+buildCapitalsWeather()
+  .then((data) => { capitalsWeatherCache = { expires: Date.now() + CAPITALS_TTL_MS, data }; })
+  .catch(() => {});
 
 // Favorites API
 const FAVORITES_KEY = 'open-meteo-favorites';

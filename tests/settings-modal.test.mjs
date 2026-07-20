@@ -20,14 +20,6 @@ const SETTINGS_MARKUP = `
       </div>
       <div class="settings-modal-body">
         <section class="settings-section">
-          <h3>Appearance</h3>
-          <select class="settings-select" id="theme-select">
-            <option value="weather">Weather-based</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </section>
-        <section class="settings-section">
           <h3>Units</h3>
           <select class="settings-select" id="temp-unit-select">
             <option value="c">Celsius (°C)</option>
@@ -35,7 +27,8 @@ const SETTINGS_MARKUP = `
           </select>
           <select class="settings-select" id="wind-unit-select">
             <option value="kmh">km/h</option>
-            <option value="mph">mph</option>
+            <option value="kn">kn</option>
+            <option value="ms">m/s</option>
           </select>
         </section>
         <section class="settings-section">
@@ -106,7 +99,6 @@ function cancel(window) {
 
 function storageOf(window) {
   return {
-    theme: window.localStorage.getItem('open-meteo-theme'),
     tempUnit: window.localStorage.getItem('open-meteo-temp-unit'),
     windUnit: window.localStorage.getItem('open-meteo-wind-unit'),
     lang: window.localStorage.getItem('open-meteo-lang'),
@@ -115,43 +107,38 @@ function storageOf(window) {
 
 test('open() syncs selects from saved storage', () => {
   const window = setup({
-    'open-meteo-theme': 'dark',
     'open-meteo-temp-unit': 'f',
-    'open-meteo-wind-unit': 'mph',
+    'open-meteo-wind-unit': 'kn',
     'open-meteo-lang': 'fr',
   });
   openModal(window);
-  assert.equal(window.document.getElementById('theme-select').value, 'dark');
   assert.equal(window.document.getElementById('temp-unit-select').value, 'f');
-  assert.equal(window.document.getElementById('wind-unit-select').value, 'mph');
+  assert.equal(window.document.getElementById('wind-unit-select').value, 'kn');
   assert.equal(window.document.getElementById('settings-lang-select').value, 'fr');
 });
 
-test('confirm() saves ALL four settings (changing one preserves the others)', () => {
+test('confirm() saves ALL settings (changing one preserves the others)', () => {
   const window = setup({
-    'open-meteo-theme': 'dark',
     'open-meteo-temp-unit': 'f',
-    'open-meteo-wind-unit': 'mph',
+    'open-meteo-wind-unit': 'kn',
     'open-meteo-lang': 'fr',
   });
   openModal(window);
-  // Change ONLY the theme, then confirm.
-  setSelect(window, 'theme-select', 'light');
+  // Change ONLY the temp unit, then confirm.
+  setSelect(window, 'temp-unit-select', 'c');
 
   confirm(window);
 
   const s = storageOf(window);
-  assert.equal(s.theme, 'light', 'changed setting should be saved');
-  assert.equal(s.tempUnit, 'f', 'untouched setting must NOT reset');
-  assert.equal(s.windUnit, 'mph', 'untouched setting must NOT reset');
+  assert.equal(s.tempUnit, 'c', 'changed setting should be saved');
+  assert.equal(s.windUnit, 'kn', 'untouched setting must NOT reset');
   assert.equal(s.lang, 'fr', 'untouched setting must NOT reset');
 });
 
-test('changing language only preserves theme/temp/wind', () => {
+test('changing language only preserves temp/wind', () => {
   const window = setup({
-    'open-meteo-theme': 'dark',
     'open-meteo-temp-unit': 'f',
-    'open-meteo-wind-unit': 'mph',
+    'open-meteo-wind-unit': 'kn',
     'open-meteo-lang': 'en',
   });
   openModal(window);
@@ -160,9 +147,8 @@ test('changing language only preserves theme/temp/wind', () => {
 
   const s = storageOf(window);
   assert.equal(s.lang, 'es');
-  assert.equal(s.theme, 'dark');
   assert.equal(s.tempUnit, 'f');
-  assert.equal(s.windUnit, 'mph');
+  assert.equal(s.windUnit, 'kn');
 });
 
 test('confirm() triggers a page reload so settings propagate', () => {
@@ -174,23 +160,19 @@ test('confirm() triggers a page reload so settings propagate', () => {
 
 test('cancel() does not write to storage', () => {
   const window = setup({
-    'open-meteo-theme': 'dark',
     'open-meteo-temp-unit': 'f',
   });
   openModal(window);
-  setSelect(window, 'theme-select', 'light');
   setSelect(window, 'temp-unit-select', 'c');
   cancel(window);
 
   const s = storageOf(window);
-  assert.equal(s.theme, 'dark', 'cancel must not persist changes');
   assert.equal(s.tempUnit, 'f', 'cancel must not persist changes');
 });
 
 test('empty storage uses defaults and persists them on confirm', () => {
   const window = setup({});
   openModal(window);
-  assert.equal(window.document.getElementById('theme-select').value, 'weather');
   assert.equal(window.document.getElementById('temp-unit-select').value, 'c');
   assert.equal(window.document.getElementById('wind-unit-select').value, 'kmh');
   assert.equal(window.document.getElementById('settings-lang-select').value, 'en');
@@ -198,7 +180,6 @@ test('empty storage uses defaults and persists them on confirm', () => {
   confirm(window);
 
   const s = storageOf(window);
-  assert.equal(s.theme, 'weather');
   assert.equal(s.tempUnit, 'c');
   assert.equal(s.windUnit, 'kmh');
   assert.equal(s.lang, 'en');

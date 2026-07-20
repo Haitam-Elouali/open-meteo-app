@@ -95,21 +95,21 @@ test('changing one setting does not reset the others on reload (language)', asyn
     'open-meteo-lang': 'es',
     'open-meteo-theme': 'dark',
     'open-meteo-temp-unit': 'f',
-    'open-meteo-wind-unit': 'mph',
+    'open-meteo-wind-unit': 'kn',
   });
   // All saved settings must be reflected simultaneously on load.
   assert.equal(window.document.documentElement.lang, 'es');
-  assert.equal(window.document.body.style.backgroundColor.replace(/\s/g, ''), 'rgb(17,21,28)', 'dark theme applied');
+  assert.equal(window.document.body.style.backgroundColor.replace(/\s/g, ''), 'rgb(42,127,212)', 'static blue applied');
   assert.match(window.document.querySelector('.card-temp p span').textContent, /°F/, 'fahrenheit applied');
-  assert.match(window.document.querySelector('.wind').textContent, /mph/, 'mph applied');
+  assert.match(window.document.querySelector('.wind').textContent, /kn/, 'knots applied');
 });
 
-test('dark theme sets a dark background, light theme a light one', async () => {
+test('background is always static blue regardless of saved theme', async () => {
   const dark = await bootWith({ 'open-meteo-theme': 'dark' });
-  assert.equal(dark.document.body.style.backgroundColor.replace(/\s/g, ''), 'rgb(17,21,28)');
+  assert.equal(dark.document.body.style.backgroundColor.replace(/\s/g, ''), 'rgb(42,127,212)');
 
   const light = await bootWith({ 'open-meteo-theme': 'light' });
-  assert.equal(light.document.body.style.backgroundColor.replace(/\s/g, ''), 'rgb(233,237,242)');
+  assert.equal(light.document.body.style.backgroundColor.replace(/\s/g, ''), 'rgb(42,127,212)');
 });
 
 test('temperature unit conversion is applied on the card', async () => {
@@ -124,9 +124,9 @@ test('temperature unit conversion is applied on the card', async () => {
 });
 
 test('wind unit conversion is applied on the card', async () => {
-  const mph = await bootWith({ 'open-meteo-wind-unit': 'mph' });
-  // 10 km/h -> 6.21 mph -> round 6
-  assert.match(mph.document.querySelector('.wind').textContent, /^6 mph$/);
+  const kn = await bootWith({ 'open-meteo-wind-unit': 'kn' });
+  // 10 km/h -> 5.4 kn -> round 5
+  assert.match(kn.document.querySelector('.wind').textContent, /^5 kn$/);
 
   const kmh = await bootWith({ 'open-meteo-wind-unit': 'kmh' });
   assert.match(kmh.document.querySelector('.wind').textContent, /^10 km\/h$/);

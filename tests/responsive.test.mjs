@@ -27,8 +27,10 @@ test('header is forced LTR even when the document is RTL (Arabic)', () => {
   assert.ok(/\.header\s*\{[^}]*direction:\s*ltr/.test(headerCss), 'header must be direction: ltr');
 });
 
-test('global body wraps content for small screens', () => {
-  assert.ok(/flex-wrap:\s*wrap/.test(globalCss), 'body should wrap');
+test('global body stacks content vertically (block flow, no flex)', () => {
+  const bodyRule = globalCss.match(/^\s*body\s*\{([^}]*)\}/m)[1];
+  assert.ok(/display:\s*block/.test(bodyRule), 'body should be display:block so header/ticker/page stack and never collapse widths');
+  assert.ok(!/display:\s*flex/.test(bodyRule), 'body must not be a flex container (would mis-size the dashboard grid)');
 });
 
 test('details forecast toolbar is aligned with the card (arrow offset, RTL-aware) and resets on mobile', () => {

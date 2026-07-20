@@ -1,4 +1,4 @@
-const { cachedFetchJson, isBlockedCountry } = require('./helpers');
+const { cachedFetchJson, isBlockedCountry } = require('../lib/helpers');
 
 module.exports = async (req, res) => {
   const country = String(req.query.country || '').trim();

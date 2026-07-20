@@ -10,14 +10,11 @@
 }
 
 body {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-start;
+    display: block;
     min-height: 100vh;
     font-size: 16px;
     color: white;
-    background-color: #dce3ea;
+    background-color: #2a7fd4;
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;

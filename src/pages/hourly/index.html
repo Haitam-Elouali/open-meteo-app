@@ -10,6 +10,9 @@
     <link href="/components/global.css" rel="stylesheet">
     <link href="/components/header/header.css?v=2" rel="stylesheet">
     <link href="/pages/hourly/hourly.css" rel="stylesheet">
+    <link href="/components/capitals-ticker.css" rel="stylesheet">
+    <script defer src="/components/units.js"></script>
+    <script defer src="/components/capitals-ticker.js?v=2"></script>
     <script defer src="/pages/hourly/hourly.js"></script>
     <title>Hourly Forecast - Open Meteo</title>
 </head>
@@ -41,6 +44,10 @@
             </button>
         </div>
     </header>
+
+    <div class="capitals-ticker" aria-label="Capital cities weather">
+        <div class="capitals-ticker__stage" id="capitals-stage"></div>
+    </div>
 
     <div class="page">
         <div class="card">
