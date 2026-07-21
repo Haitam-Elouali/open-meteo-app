@@ -408,9 +408,16 @@
       });
 
       const country = rev?.country || '';
-      const citiesWeather = country
-        ? await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] cities-weather fetch failed', e); return {}; })
-        : { data: { cities: [] } };
+      let citiesWeather = { data: { cities: [] } };
+      if (country) {
+        try {
+          const r = await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`);
+          if (r.ok) citiesWeather = await r.json();
+          else console.warn('[dashboard] cities-weather HTTP', r.status, 'for', country);
+        } catch (e) {
+          console.error('[dashboard] cities-weather fetch failed', e);
+        }
+      }
 
       const h24 = hourly?.data?.hourly || {};
       const h15 = minutely?.data?.hourly || {};
@@ -424,7 +431,13 @@
           if (empty) empty.remove();
         });
 
-      const cities = citiesWeather?.data?.cities || [];
+      let cities = citiesWeather?.data?.cities || [];
+      if (!cities.length) {
+        try {
+          const fallback = await fetch('/api/cities-weather?country=Morocco').then((r) => r.json()).catch(() => null);
+          cities = fallback?.data?.cities || [];
+        } catch (e) { /* ignore */ }
+      }
       renderCitiesTable('cities-table', cities);
 
       // 15-min temperature: cap at ~48 points (12h) so labels don't squeeze.

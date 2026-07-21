@@ -199,11 +199,9 @@
 .forecast-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     flex-wrap: wrap;
     gap: 12px;
-    /* align with the forecast card itself (which starts after the prev arrow);
-       logical property so it also aligns correctly in RTL (Arabic) */
     margin: 8px 0 16px;
     margin-inline-start: 48px;
 }
@@ -212,13 +210,6 @@
     .forecast-toolbar {
         margin-inline-start: 0;
     }
-}
-
-.forecast-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 12px;
 }
 
 .forecast-toolbar h2 {
