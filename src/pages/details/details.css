@@ -196,19 +196,27 @@
 }
 
 /* ---------- Forecast (single card) ---------- */
+.forecast-block {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin: 8px auto 16px;
+}
+
 .forecast-toolbar {
     display: flex;
     align-items: center;
     justify-content: flex-start;
     flex-wrap: wrap;
     gap: 12px;
-    margin: 8px 0 16px;
-    margin-inline-start: 48px;
+    padding-inline-start: 48px;
+    box-sizing: border-box;
 }
 
 @media (max-width: 600px) {
     .forecast-toolbar {
-        margin-inline-start: 0;
+        padding-inline-start: 0;
     }
 }
 
@@ -281,9 +289,6 @@
     justify-content: center;
     gap: 8px;
     position: relative;
-    /* Shrink to the content (arrows + card) and center the block itself. */
-    width: fit-content;
-    max-width: 100%;
     margin: 0 auto;
 }
 

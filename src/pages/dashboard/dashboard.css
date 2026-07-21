@@ -338,6 +338,12 @@
     border-collapse: collapse;
     color: white;
     font-size: 15px;
+    max-height: 260px;
+    overflow-y: auto;
+    display: block;
+}
+.cities-table thead {
+    display: table-header-group;
 }
 .cities-table thead th {
     text-align: left;
@@ -345,6 +351,18 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
     font-weight: 400;
     opacity: 0.85;
+    position: sticky;
+    top: 0;
+    background: rgba(15, 23, 42, 0.95);
+    z-index: 1;
+}
+.cities-table tbody {
+    display: block;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.cities-table tbody tr {
+    display: table-row;
 }
 .cities-table tbody td {
     padding: 10px 12px;

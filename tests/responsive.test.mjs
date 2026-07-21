@@ -35,7 +35,7 @@ test('global body stacks content vertically (block flow, no flex)', () => {
 
 test('details forecast toolbar is aligned with the card (arrow offset, RTL-aware) and resets on mobile', () => {
   // logical property so it aligns in both LTR and RTL (Arabic)
-  assert.ok(/\.forecast-toolbar[^}]*margin-inline-start:\s*48px/.test(detailsCss), 'toolbar should offset by arrow width (logical)');
+  assert.ok(/\.forecast-toolbar[^}]*padding-inline-start:\s*48px/.test(detailsCss), 'toolbar should offset by arrow width (logical)');
   assert.ok(/@media/.test(detailsCss), 'details page should have a media query');
 });
 

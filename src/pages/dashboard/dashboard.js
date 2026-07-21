@@ -726,7 +726,20 @@
         }
       }
       if (!cities.length) {
-        console.warn('[dashboard] no cities for country, using global fallback');
+        console.warn('[dashboard] no cities for country, trying /api/cities-weather fallback');
+        try {
+          const cwR = await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`);
+          if (cwR.ok) {
+            const cwData = await cwR.json();
+            cities = cwData?.data?.cities || [];
+            console.log('[dashboard] cities-weather fallback cities', cities.length);
+          }
+        } catch (e) {
+          console.error('[dashboard] cities-weather fallback failed', e);
+        }
+      }
+      if (!cities.length) {
+        console.warn('[dashboard] still no cities, using global fallback');
         const fallbackCountries = ['Morocco', 'France', 'United Kingdom', 'Spain', 'United States'];
         for (const fbCountry of fallbackCountries) {
           const fbCities = MAJOR_CITIES_BY_COUNTRY[fbCountry];
@@ -739,7 +752,11 @@
             const weatherR = await fetch(weatherUrl);
             if (weatherR.ok) {
               const weatherData = await weatherR.json();
-              const currents = weatherData?.data?.current || [];
+              const currents = Object.keys(weatherData?.data || {})
+                .filter((k) => !isNaN(Number(k)))
+                .sort((a, b) => Number(a) - Number(b))
+                .map((k) => weatherData.data[k]?.current)
+                .filter(Boolean);
               cities = fbCities.map((c, i) => ({
                 name: c.name,
                 maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
