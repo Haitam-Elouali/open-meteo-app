@@ -165,9 +165,11 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
 
   const now = new Date();
   const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
+  const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
 
-  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
-  for (const id of ids) {
+  // temp-15min-chart uses 15-min data → quarter-hour labels.
+  const ids15 = ['temp-15min-chart'];
+  for (const id of ids15) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
     assert.ok(canvas, `no canvas in ${id}`);
@@ -175,6 +177,18 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assertConstantMainGrid(xLabels, id);
     assert.equal(xLabels[0].text, currentQ, `first x label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
+  }
+
+  // humidity-chart and wind-chart use 24h hourly data → hour labels.
+  const ids24 = ['humidity-chart', 'wind-chart'];
+  for (const id of ids24) {
+    const c = window.document.getElementById(id);
+    const canvas = c && c.querySelector('canvas');
+    assert.ok(canvas, `no canvas in ${id}`);
+    const rec = perCanvas.get(canvas) || [];
+    const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
+    assertConstantMainGrid(xLabels, id);
+    assert.equal(xLabels[0].text, currentH, `first x label should be current hour in ${id}: got ${xLabels[0].text}`);
   }
 });
 
@@ -194,8 +208,9 @@ test('x-axis spans a full 24h window: starts at current quarter-hour and spans 2
   const now = new Date();
   const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
-  for (const id of ids) {
+  // temp-15min-chart uses 15-min data → quarter-hour labels.
+  const ids15 = ['temp-15min-chart'];
+  for (const id of ids15) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
     assert.ok(canvas, `no canvas in ${id}`);
@@ -203,6 +218,19 @@ test('x-axis spans a full 24h window: starts at current quarter-hour and spans 2
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
     assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
+  }
+
+  // humidity-chart and wind-chart use 24h hourly data → hour labels starting from current hour.
+  const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
+  const ids24 = ['humidity-chart', 'wind-chart'];
+  for (const id of ids24) {
+    const c = window.document.getElementById(id);
+    const canvas = c && c.querySelector('canvas');
+    assert.ok(canvas, `no canvas in ${id}`);
+    const rec = perCanvas.get(canvas) || [];
+    const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
+    assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
+    assert.equal(xLabels[0].text, currentH, `first label should be current hour in ${id}: got ${xLabels[0].text}`);
   }
 });
 
@@ -359,15 +387,29 @@ test('every diagram x-axis spans the 24h window (current hour -> same hour)', as
   const now = new Date();
   const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  // All charts now use 15-min data, so labels are HH:MM.
-  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
-  for (const id of ids) {
+  // temp-15min-chart uses 15-min data → quarter-hour labels.
+  const ids15 = ['temp-15min-chart'];
+  for (const id of ids15) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
+    assert.ok(canvas, `no canvas in ${id}`);
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[0].text, currentQ, `start label should be ${currentQ} in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
+  }
+
+  // humidity-chart and wind-chart use 24h hourly data → hour labels starting from current hour.
+  const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
+  const ids24 = ['humidity-chart', 'wind-chart'];
+  for (const id of ids24) {
+    const c = window.document.getElementById(id);
+    const canvas = c && c.querySelector('canvas');
+    assert.ok(canvas, `no canvas in ${id}`);
+    const rec = perCanvas.get(canvas) || [];
+    const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
+    assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
+    assert.equal(xLabels[0].text, currentH, `first label should be current hour in ${id}: got ${xLabels[0].text}`);
   }
 });
 

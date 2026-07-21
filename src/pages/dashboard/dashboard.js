@@ -391,9 +391,10 @@
   async function loadDashboard() {
     const { lat, lon } = getLatLon();
     try {
-      const [weather, minutely, rev] = await Promise.all([
+      const [weather, minutely, hourly, rev] = await Promise.all([
         fetch(`/api/weather?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] weather fetch failed', e); return {}; }),
         fetch(`/api/hourly?lat=${lat}&lon=${lon}&interval=15`).then((r) => r.json()).catch((e) => { console.error('[dashboard] minutely fetch failed', e); return {}; }),
+        fetch(`/api/hourly?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] hourly fetch failed', e); return {}; }),
         fetch(`/api/reverse?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] reverse fetch failed', e); return {}; })
       ]);
 
@@ -411,8 +412,10 @@
         ? await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] cities-weather fetch failed', e); return {}; })
         : { data: { cities: [] } };
 
-      const h = minutely?.data?.hourly || {};
-      const times = h.time || [];
+      const h24 = hourly?.data?.hourly || {};
+      const h15 = minutely?.data?.hourly || {};
+      const times15 = h15.time || [];
+      const times24 = h24.time || [];
 
       ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']
         .forEach((id) => {
@@ -424,17 +427,22 @@
       const cities = citiesWeather?.data?.cities || [];
       renderCitiesTable('cities-table', cities);
 
-      if (times.length) {
+      // 15-min temperature: cap at ~48 points (12h) so labels don't squeeze.
+      const MAX_15MIN_POINTS = 48;
+      if (times15.length) {
         const safe = (id, series) => {
           try { drawChart(id, series); }
           catch (e) { console.error('[dashboard] drawChart failed for', id, e); showChartError(id, 'No data'); }
         };
-        const temp15 = next15min(h.temperature_2m, times);
-        const tempLabels = temp15.labels;
-        const tempValues = (temp15.values || []).map((v) => U.temp(v));
-        safe('temp-15min-chart', { values: tempValues, color: 'rgba(248,113,113,0.9)', label: '°C', labels: tempLabels });
-        safe('humidity-chart', { values: next15min(h.relative_humidity_2m, times).values, color: 'rgba(52,211,153,0.85)', label: '%', labels: tempLabels });
-        safe('wind-chart', { values: next15min(h.wind_speed_10m, times).values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: tempLabels });
+        const temp15 = next15min(h15.temperature_2m, times15);
+        const temp15cut = { values: temp15.values.slice(0, MAX_15MIN_POINTS), labels: temp15.labels.slice(0, MAX_15MIN_POINTS) };
+        safe('temp-15min-chart', { values: temp15cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp15cut.labels });
+
+        // Humidity and wind stay on the 24h hourly window.
+        const hum24 = next24(h24.relative_humidity_2m, times24);
+        safe('humidity-chart', { values: hum24.values, color: 'rgba(52,211,153,0.85)', label: '%', labels: hum24.labels });
+        const wind24 = next24(h24.wind_speed_10m, times24);
+        safe('wind-chart', { values: wind24.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind24.labels });
       } else {
         ['temp-15min-chart', 'humidity-chart', 'wind-chart']
           .forEach((id) => showChartError(id, 'No data'));

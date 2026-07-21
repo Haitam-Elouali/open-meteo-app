@@ -214,6 +214,13 @@
     }
 }
 
+.forecast-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
 .forecast-toolbar h2 {
     color: white;
     font-size: 20px;
