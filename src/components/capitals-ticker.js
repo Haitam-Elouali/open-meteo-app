@@ -45,7 +45,7 @@
     const text = document.createElement('span');
     text.className = 'capital-card__text';
     if (cap.error || cap.temperature == null) {
-      text.textContent = `${cap.capital}, ${cap.country}: --`;
+      text.textContent = `${cap.capital}, ${cap.country}:`;
       renderSvg(svg, 'day');
     } else {
       const temp = Number.isFinite(Number(cap.temperature))

@@ -14,7 +14,7 @@ const { CAPITALS } = require(`${__dirname}../lib/capitals-data.js`);
 const REMOVED_MOROCCO = [
   'Ait-Melloul', 'Ben-Guerir', 'Bouarfa', 'Nouaceur', 'Salé',
   'Souk El Arbaa', 'Youssoufia', 'Bouznika', 'Benslimane',
-  'Sidi Slimane', 'Sidi Kacem', 'Tiflet', 'Taourirt', 'Oulad Teima',
+  'Tiflet', 'Taourirt', 'Oulad Teima',
   'Akka', 'Assa', 'Mirleft', "M'Diq", 'Fnideq', 'Martil', 'Asilah',
   'Jerada', 'Figuig', 'Boujdour', 'Smara', 'Tan-Tan', 'Guelmim'
 ];

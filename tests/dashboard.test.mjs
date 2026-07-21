@@ -52,11 +52,14 @@ function loadScript(window, rel) {
 function stubFetch(window) {
   window.fetch = (url) => {
     if (url.startsWith('/api/hourly')) {
+      const use15 = url.includes('interval=15');
       const base = new Date(); base.setMinutes(0, 0, 0);
       const time = [], temperature_2m = [], relative_humidity_2m = [], wind_speed_10m = [], precipitation = [], precipitation_probability = [];
-      for (let i = 0; i < 72; i++) {
-        const d = new Date(base.getTime() + i * 3600 * 1000);
-        time.push(d.toISOString().slice(0, 16));
+      const count = use15 ? 96 : 72;
+      const stepMs = use15 ? 15 * 60 * 1000 : 3600 * 1000;
+      for (let i = 0; i < count; i++) {
+        const d = new Date(base.getTime() + i * stepMs);
+        time.push(d.toISOString().slice(0, use15 ? 16 : 16));
         temperature_2m.push(20 + (i % 5));
         relative_humidity_2m.push(50 + (i % 10));
         wind_speed_10m.push(10 + (i % 4));
@@ -67,6 +70,12 @@ function stubFetch(window) {
     }
     if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
+      { name: 'Fes', maxTemp: 35 },
+      { name: 'Casablanca', maxTemp: 30 },
+      { name: 'Rabat', maxTemp: 28 },
+      { name: 'Agadir', maxTemp: null },
+    ] } }) });
     // weather-sprite.svg etc. – not needed for chart assertions.
     return Promise.resolve({ json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
@@ -86,12 +95,16 @@ test('dashboard charts render canvas with data for every widget', async () => {
 
   assert.equal(window.__errors.length, 0, 'unexpected errors:\n' + window.__errors.join('\n'));
 
-  for (const id of ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart']) {
+  for (const id of ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']) {
     const c = window.document.getElementById(id);
     assert.ok(c, `missing container ${id}`);
-    const canvas = c.querySelector('canvas');
-    assert.ok(canvas, `no canvas drawn in ${id}`);
-    assert.ok(!c.querySelector('.chart-empty'), `empty-state shown in ${id}`);
+    if (id === 'cities-table') {
+      assert.ok(c.querySelector('.cities-table'), `table not rendered in ${id}`);
+    } else {
+      const canvas = c.querySelector('canvas');
+      assert.ok(canvas, `no canvas drawn in ${id}`);
+      assert.ok(!c.querySelector('.chart-empty'), `empty-state shown in ${id}`);
+    }
   }
   assert.ok(window.__drawCalls > 0, 'no drawing occurred');
   assert.ok(window.__labelCalls > 0, 'x-axis labels were not drawn');
@@ -137,7 +150,7 @@ function assertConstantMainGrid(xLabels, id) {
   assert.ok(IS_X_LABEL(xLabels[xLabels.length - 1].text), `last label not a clock hour in ${id}`);
 }
 
-test('x-axis anchored to current hour, constant grid, marks the end (no empty space)', async () => {
+test('x-axis anchored to current quarter-hour, constant grid, marks the end (no empty space)', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -150,11 +163,10 @@ test('x-axis anchored to current hour, constant grid, marks the end (no empty sp
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
 
-  // The axis anchors to the REAL current hour (the dashboard uses "now").
-  const nowHour = new Date().getHours();
-  const expectedFirst = `${String(nowHour).padStart(2, '0')}:00`;
+  const now = new Date();
+  const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  const ids = ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart'];
+  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
   for (const id of ids) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
@@ -162,11 +174,11 @@ test('x-axis anchored to current hour, constant grid, marks the end (no empty sp
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assertConstantMainGrid(xLabels, id);
-    assert.equal(xLabels[0].text, expectedFirst, `first x label should be current hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[0].text, currentQ, `first x label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
   }
 });
 
-test('x-axis spans a full 24h window: starts and ends on the same hour (15:00 -> 15:00)', async () => {
+test('x-axis spans a full 24h window: starts at current quarter-hour and spans 24h', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -179,18 +191,18 @@ test('x-axis spans a full 24h window: starts and ends on the same hour (15:00 ->
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
 
-  const nowHour = new Date().getHours();
-  const sameHour = `${String(nowHour).padStart(2, '0')}:00`;
+  const now = new Date();
+  const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  const ids = ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart'];
+  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
   for (const id of ids) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
+    assert.ok(canvas, `no canvas in ${id}`);
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
-    // First and last labels must be the same hour (current hour -> +24h).
-    assert.equal(xLabels[0].text, sameHour, `start label should be ${sameHour} in ${id}: got ${xLabels[0].text}`);
-    assert.equal(xLabels[xLabels.length - 1].text, sameHour, `end label should be ${sameHour} (24h) in ${id}: got ${xLabels[xLabels.length - 1].text}`);
+    assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
+    assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
   }
 });
 
@@ -321,13 +333,14 @@ test('dashboard shows empty state when hourly has no times', async () => {
     if (url.startsWith('/api/hourly')) return Promise.resolve({ json: () => Promise.resolve({ data: { hourly: {} } }) });
     if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: {} } }) });
     if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({}) });
+    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { cities: [] } }) });
     return Promise.resolve({ json: () => Promise.resolve({}) });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
 
   await new Promise((r) => setTimeout(r, 400));
 
-  const c = window.document.getElementById('temp-max-chart');
+  const c = window.document.getElementById('temp-15min-chart');
   assert.ok(c.querySelector('.chart-empty'), 'expected empty-state when no hourly data');
 });
 
@@ -343,21 +356,42 @@ test('every diagram x-axis spans the 24h window (current hour -> same hour)', as
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
 
-  const nowHour = new Date().getHours();
-  const sameHour = `${String(nowHour).padStart(2, '0')}:00`;
+  const now = new Date();
+  const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  // The on-chart "HH:00 -> HH:00" caption was intentionally removed; the 24h
-  // window is still conveyed by the x-axis first/last labels (current hour ->
-  // same hour next day). Verify those remain.
-  const ids = ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart'];
+  // All charts now use 15-min data, so labels are HH:MM.
+  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
   for (const id of ids) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
-    assert.equal(xLabels[0].text, sameHour, `start label should be ${sameHour} in ${id}: got ${xLabels[0].text}`);
-    assert.equal(xLabels[xLabels.length - 1].text, sameHour, `end label should be ${sameHour} in ${id}: got ${xLabels[xLabels.length - 1].text}`);
+    assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
+    assert.equal(xLabels[0].text, currentQ, `start label should be ${currentQ} in ${id}: got ${xLabels[0].text}`);
   }
+});
+
+test('15-min temperature chart x-axis shows quarter-hour labels starting from current time', async () => {
+  const window = makeDom();
+  loadScript(window, 'components/units.js');
+  loadScript(window, 'components/i18n.js');
+  loadScript(window, 'components/weather-background.js');
+  loadScript(window, 'components/capitals-ticker.js');
+  loadScript(window, 'pages/dashboard/dashboard.js');
+  const perCanvas = withPerCanvasRecorder(window);
+  stubFetch(window);
+  window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  await new Promise((r) => setTimeout(r, 400));
+
+  const c = window.document.getElementById('temp-15min-chart');
+  const canvas = c && c.querySelector('canvas');
+  const rec = perCanvas.get(canvas) || [];
+  const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
+  assert.ok(xLabels.length >= 2, `expected >=2 x labels on 15-min chart, got ${xLabels.length}: ${xLabels.map((l)=>l.text).join(',')}`);
+  // First label should be the current quarter-hour (e.g. "14:30" or "14:45").
+  const now = new Date();
+  const currentQ = `${String(now.getHours()).padStart(2,'0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2,'0')}`;
+  assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour ${currentQ}, got ${xLabels[0].text}`);
 });
 
 test('main temperature charted comes from temperature_2m (approx 2m) values', async () => {
@@ -408,14 +442,53 @@ test('dashboard charts use a larger container so cards are big enough', async ()
   void html;
   const style = window.document.querySelector('link[rel="stylesheet"]');
   void style;
-  // The stylesheet is loaded externally; verify the chart container selector
-  // exists in the served CSS and declares a height >= 300px.
   const fs = await import('fs');
   const css = fs.readFileSync(`${root}src/pages/dashboard/dashboard.css`, 'utf8');
-  // Match the primary (non-media) .chart-container rule: it starts at column 0
-  // and is followed by its height before any @media override.
   const m = css.match(/\n\.chart-container\s*\{[^}]*?height:\s*(\d+)px/);
   assert.ok(m, 'chart-container height not found in dashboard.css');
   assert.ok(Number(m[1]) >= 300, `chart container too small: ${m[1]}px`);
+});
+
+test('cities table is the first widget and renders rows sorted by max temp desc', async () => {
+  const window = makeDom();
+  loadScript(window, 'components/units.js');
+  loadScript(window, 'components/i18n.js');
+  loadScript(window, 'components/weather-background.js');
+  loadScript(window, 'components/capitals-ticker.js');
+  loadScript(window, 'pages/dashboard/dashboard.js');
+  window.fetch = (url) => {
+    const u = String(url);
+    if (u.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
+    if (u.startsWith('/api/hourly')) return Promise.resolve({ json: () => Promise.resolve({ data: { hourly: { time: [], temperature_2m: [], relative_humidity_2m: [], wind_speed_10m: [] } } }) });
+    if (u.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    if (u.startsWith('/api/cities-weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
+      { name: 'Fes', maxTemp: 35 },
+      { name: 'Casablanca', maxTemp: 30 },
+      { name: 'Rabat', maxTemp: 28 },
+      { name: 'Agadir', maxTemp: null },
+    ] } }) });
+    return Promise.resolve({ json: () => Promise.resolve({}) });
+  };
+  window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  await new Promise((r) => setTimeout(r, 400));
+
+  // The cities-table container must be the first .card in the grid.
+  const firstCard = window.document.querySelector('.dashboard-grid .card');
+  assert.ok(firstCard, 'first card should exist');
+  assert.ok(firstCard.querySelector('#cities-table'), 'first card should contain the cities table');
+
+  const table = window.document.querySelector('#cities-table .cities-table');
+  assert.ok(table, 'cities table should render');
+  const rows = table.querySelectorAll('tbody tr');
+  assert.equal(rows.length, 4, 'should render all 4 cities (including null maxTemp)');
+  const temps = Array.from(rows).map((tr) => {
+    const txt = tr.querySelector('td:last-child').textContent.replace('°', '').trim();
+    return txt === '--' ? null : Number(txt);
+  }).filter((t) => t != null);
+  for (let i = 1; i < temps.length; i++) {
+    assert.ok(temps[i - 1] >= temps[i], `rows should be sorted descending: ${temps.join(', ')}`);
+  }
+  // Cells should have inline background colors.
+  assert.ok(rows[0].style.backgroundColor.length > 0, 'row cells should have temperature-based background color');
 });
 

@@ -340,7 +340,7 @@ app.get('/api/reverse', async (req, res) => {
     url.searchParams.set('accept-language', 'en');
 
     const data = await cachedFetchJson(url.toString(), {
-      headers: { 'User-Agent': 'Open-Meteo-Client/1.0' }
+      headers: { 'User-Agent': 'Open-Arsad-Client/1.0' }
     });
     const address = data?.address || {};
 
@@ -523,5 +523,5 @@ app.post('/api/favorites', express.json(), (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Open-Meteo server listening on http://localhost:${PORT}`);
+  console.log(`Open-Arsad server listening on http://localhost:${PORT}`);
 });

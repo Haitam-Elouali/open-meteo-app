@@ -310,6 +310,35 @@
     return { values: out, labels };
   }
 
+  function next15min(arr, times) {
+    const out = [];
+    const labels = [];
+    if (!times || !times.length || !arr || !arr.length) return { values: out, labels };
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentQuarter = Math.floor(currentMinute / 15) * 15;
+    let startIdx = times.findIndex((t) => {
+      const d = new Date(t);
+      return d.getHours() === currentHour && d.getMinutes() === currentQuarter;
+    });
+    if (startIdx < 0) startIdx = 0;
+    const maxPoints = 96; // 24h * 4 per hour
+    for (let i = startIdx; i < times.length && out.length < maxPoints; i++) {
+      out.push(arr[i]);
+      const d = new Date(times[i]);
+      labels.push(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    }
+    if (!out.length) {
+      for (let i = 0; i < maxPoints && i < arr.length; i++) {
+        out.push(arr[i]);
+        const d = new Date(times[i]);
+        labels.push(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      }
+    }
+    return { values: out, labels };
+  }
+
   function showChartError(containerId, msg) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -320,12 +349,51 @@
     container.appendChild(el);
   }
 
+  function tempToColor(temp) {
+    if (temp == null || !Number.isFinite(temp)) return 'transparent';
+    const t = Math.max(0, Math.min(1, (temp - (-10)) / (45 - (-10))));
+    const hue = (1 - t) * 240;
+    return `hsl(${hue}, 75%, 55%)`;
+  }
+
+  function renderCitiesTable(containerId, cities) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    if (!cities || !cities.length) {
+      container.innerHTML = '<div class="chart-empty">No data</div>';
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'cities-table';
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr><th data-i18n="dashboard.citiesTableCity">City</th><th data-i18n="dashboard.citiesTableMaxTemp">Max Temp</th></tr>`;
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    cities.forEach((c) => {
+      const tr = document.createElement('tr');
+      const bg = tempToColor(c.maxTemp);
+      tr.style.backgroundColor = bg;
+      tr.style.color = 'white';
+      const tdName = document.createElement('td');
+      tdName.textContent = c.name;
+      const tdTemp = document.createElement('td');
+      tdTemp.textContent = c.maxTemp != null ? `${c.maxTemp}°` : '--';
+      tr.appendChild(tdName);
+      tr.appendChild(tdTemp);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+    window.I18n?.apply?.();
+  }
+
   async function loadDashboard() {
     const { lat, lon } = getLatLon();
     try {
-      const [weather, hourly, rev] = await Promise.all([
+      const [weather, minutely, rev] = await Promise.all([
         fetch(`/api/weather?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] weather fetch failed', e); return {}; }),
-        fetch(`/api/hourly?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] hourly fetch failed', e); return {}; }),
+        fetch(`/api/hourly?lat=${lat}&lon=${lon}&interval=15`).then((r) => r.json()).catch((e) => { console.error('[dashboard] minutely fetch failed', e); return {}; }),
         fetch(`/api/reverse?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] reverse fetch failed', e); return {}; })
       ]);
 
@@ -338,36 +406,37 @@
         weatherCode: current.weather_code
       });
 
-      const h = hourly?.data?.hourly || {};
+      const country = rev?.country || '';
+      const citiesWeather = country
+        ? await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] cities-weather fetch failed', e); return {}; })
+        : { data: { cities: [] } };
+
+      const h = minutely?.data?.hourly || {};
       const times = h.time || [];
 
-      ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart']
+      ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']
         .forEach((id) => {
           const c = document.getElementById(id);
           const empty = c && c.querySelector('.chart-empty');
           if (empty) empty.remove();
         });
 
+      const cities = citiesWeather?.data?.cities || [];
+      renderCitiesTable('cities-table', cities);
+
       if (times.length) {
         const safe = (id, series) => {
           try { drawChart(id, series); }
           catch (e) { console.error('[dashboard] drawChart failed for', id, e); showChartError(id, 'No data'); }
         };
-        const temp24series = next24(h.temperature_2m, times);
-        const temp24 = (temp24series.values || []).map((v) => U.temp(v));
-        const tempLabels = temp24series.labels;
-        const maxTempSeries = rolling(temp24, Math.max);
-        const minTempSeries = rolling(temp24, Math.min);
-        // All five widgets share the same 24h window, so they share one set of
-        // hour labels (tempLabels). Pass it to every chart so the x-axis shows
-        // real HH:MM values on each.
-        safe('temp-max-chart', { values: maxTempSeries, color: 'rgba(248,113,113,0.9)', label: 'Max', labels: tempLabels });
-        safe('temp-min-chart', { values: minTempSeries, color: 'rgba(96,165,250,0.9)', label: 'Min', labels: tempLabels });
-        safe('precip-chart', { values: next24(h.precipitation_probability || h.precipitation, times).values.map((v) => Number(v) || 0), color: 'rgba(96,165,250,0.85)', label: '%', labels: tempLabels });
-        safe('humidity-chart', { values: next24(h.relative_humidity_2m, times).values, color: 'rgba(52,211,153,0.85)', label: '%', labels: tempLabels });
-        safe('wind-chart', { values: next24(h.wind_speed_10m, times).values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: tempLabels });
+        const temp15 = next15min(h.temperature_2m, times);
+        const tempLabels = temp15.labels;
+        const tempValues = (temp15.values || []).map((v) => U.temp(v));
+        safe('temp-15min-chart', { values: tempValues, color: 'rgba(248,113,113,0.9)', label: '°C', labels: tempLabels });
+        safe('humidity-chart', { values: next15min(h.relative_humidity_2m, times).values, color: 'rgba(52,211,153,0.85)', label: '%', labels: tempLabels });
+        safe('wind-chart', { values: next15min(h.wind_speed_10m, times).values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: tempLabels });
       } else {
-        ['temp-max-chart', 'temp-min-chart', 'precip-chart', 'humidity-chart', 'wind-chart']
+        ['temp-15min-chart', 'humidity-chart', 'wind-chart']
           .forEach((id) => showChartError(id, 'No data'));
       }
     } catch (e) {
