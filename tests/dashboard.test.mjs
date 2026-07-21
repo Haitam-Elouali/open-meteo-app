@@ -534,3 +534,25 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
   assert.ok(rows[0].style.backgroundColor.length > 0, 'row cells should have temperature-based background color');
 });
 
+test('cities table headers are translated by i18n after render', async () => {
+  const window = makeDom();
+  loadScript(window, 'components/units.js');
+  loadScript(window, 'components/i18n.js');
+  window.localStorage.setItem('open-meteo-lang', 'fr');
+  loadScript(window, 'components/weather-background.js');
+  loadScript(window, 'components/capitals-ticker.js');
+  loadScript(window, 'pages/dashboard/dashboard.js');
+  const perCanvas = withPerCanvasRecorder(window);
+
+  stubFetch(window);
+  window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  await new Promise((r) => setTimeout(r, 400));
+
+  const table = window.document.querySelector('#cities-table .cities-table');
+  assert.ok(table, 'cities table should render');
+  const headers = table.querySelectorAll('thead th');
+  assert.ok(headers.length >= 2, 'table should have headers');
+  assert.equal(headers[0].textContent, 'Ville', 'city header should be translated to French');
+  assert.equal(headers[1].textContent, 'Max', 'max temp header should be translated to French');
+});
+

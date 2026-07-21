@@ -51,7 +51,7 @@
       const temp = Number.isFinite(Number(cap.temperature))
         ? Math.round(U.temp(Number(cap.temperature)))
         : '';
-      text.textContent = `${cap.capital}, ${cap.country} — ${temp}${U.tempLabel()}`;
+      text.textContent = `${cap.capital}, ${cap.country}: ${temp}${U.tempLabel()}`;
       renderSvg(svg, chooseIcon({ is_day: cap.is_day === 1, weatherCode: cap.weatherCode }));
     }
     item.appendChild(svg);

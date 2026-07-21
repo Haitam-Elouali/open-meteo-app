@@ -358,9 +358,11 @@
 
   function renderCitiesTable(containerId, cities) {
     const container = document.getElementById(containerId);
+    console.log('[dashboard] renderCitiesTable', { containerId, containerExists: !!container, citiesCount: cities?.length, firstCity: cities?.[0] });
     if (!container) return;
     container.innerHTML = '';
     if (!cities || !cities.length) {
+      console.warn('[dashboard] renderCitiesTable: no cities, showing empty state');
       container.innerHTML = '<div class="chart-empty">No data</div>';
       return;
     }
@@ -385,11 +387,14 @@
     });
     table.appendChild(tbody);
     container.appendChild(table);
+    console.log('[dashboard] renderCitiesTable: table appended, children', container.children.length);
     window.I18n?.apply?.();
+    console.log('[dashboard] renderCitiesTable: i18n applied');
   }
 
   async function loadDashboard() {
     const { lat, lon } = getLatLon();
+    console.log('[dashboard] loadDashboard start', { lat, lon });
     try {
       const [weather, minutely, hourly, rev] = await Promise.all([
         fetch(`/api/weather?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] weather fetch failed', e); return {}; }),
@@ -397,6 +402,8 @@
         fetch(`/api/hourly?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] hourly fetch failed', e); return {}; }),
         fetch(`/api/reverse?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] reverse fetch failed', e); return {}; })
       ]);
+      console.log('[dashboard] reverse result', rev);
+      console.log('[dashboard] weather keys', Object.keys(weather?.data || {}));
 
       const current = weather?.data?.current || {};
 
@@ -408,21 +415,32 @@
       });
 
       const country = rev?.country || '';
+      console.log('[dashboard] country from reverse', country);
       let citiesWeather = { data: { cities: [] } };
       if (country) {
         try {
-          const r = await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`);
-          if (r.ok) citiesWeather = await r.json();
-          else console.warn('[dashboard] cities-weather HTTP', r.status, 'for', country);
+          const url = `/api/cities-weather?country=${encodeURIComponent(country)}`;
+          console.log('[dashboard] fetching cities-weather', url);
+          const r = await fetch(url);
+          console.log('[dashboard] cities-weather status', r.status, r.statusText);
+          if (r.ok) {
+            citiesWeather = await r.json();
+            console.log('[dashboard] cities-weather payload', citiesWeather);
+          } else {
+            console.warn('[dashboard] cities-weather HTTP', r.status, 'for', country);
+          }
         } catch (e) {
           console.error('[dashboard] cities-weather fetch failed', e);
         }
+      } else {
+        console.warn('[dashboard] no country from reverse geocoding, skipping cities-weather');
       }
 
       const h24 = hourly?.data?.hourly || {};
       const h15 = minutely?.data?.hourly || {};
       const times15 = h15.time || [];
       const times24 = h24.time || [];
+      console.log('[dashboard] hourly times count', times24.length, 'minutely times count', times15.length);
 
       ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']
         .forEach((id) => {
@@ -432,12 +450,18 @@
         });
 
       let cities = citiesWeather?.data?.cities || [];
+      console.log('[dashboard] cities from API', cities.length);
       if (!cities.length) {
+        console.warn('[dashboard] no cities for country, trying Morocco fallback');
         try {
           const fallback = await fetch('/api/cities-weather?country=Morocco').then((r) => r.json()).catch(() => null);
           cities = fallback?.data?.cities || [];
+          console.log('[dashboard] Morocco fallback cities', cities.length);
         } catch (e) { /* ignore */ }
       }
+      console.log('[dashboard] final cities count', cities.length, 'first', cities[0]);
+      const container = document.getElementById('cities-table');
+      console.log('[dashboard] cities-table container exists', !!container);
       renderCitiesTable('cities-table', cities);
 
       // 15-min temperature: cap at ~48 points (12h) so labels don't squeeze.
