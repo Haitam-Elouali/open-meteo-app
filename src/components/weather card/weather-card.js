@@ -478,8 +478,11 @@ function wireUI() {
 
   const langCode = getLanguageFromUI();
 
-  // localization (reverse geocode)
-  const rev = await reverseGeocode({ lat, lon });
+  // localization: prefer the user-selected city name from localStorage,
+  // fall back to reverse geocode, then to coordinates.
+  const savedCity = (() => { try { return localStorage.getItem('open-meteo-city'); } catch (e) { return ''; } })();
+  const savedCountry = (() => { try { return localStorage.getItem('open-meteo-country'); } catch (e) { return ''; } })();
+  const rev = savedCity ? { city: savedCity, country: savedCountry } : await reverseGeocode({ lat, lon });
   const loc = $('.localization');
   const city = rev?.city || '';
   const country = rev?.country || '';

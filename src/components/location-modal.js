@@ -1964,8 +1964,19 @@
     }
     const citySelect = $('.location-city');
     if (citySelect) {
-      citySelect.innerHTML = `<option value="">${t('location.selectCountryFirst', 'Select a country first')}</option>`;
-      citySelect.disabled = true;
+      const savedCountry = countrySelect?.value;
+      if (savedCountry) {
+        const cities = citiesFor(savedCountry);
+        if (cities && cities.length) {
+          populateCities(cities);
+        } else {
+          citySelect.innerHTML = `<option value="">${t('location.selectCountryFirst', 'Select a country first')}</option>`;
+          citySelect.disabled = true;
+        }
+      } else {
+        citySelect.innerHTML = `<option value="">${t('location.selectCountryFirst', 'Select a country first')}</option>`;
+        citySelect.disabled = true;
+      }
     }
     if (window.I18n && window.I18n.apply) window.I18n.apply();
     backdrop.hidden = false;
@@ -2062,6 +2073,8 @@
           if (!r) return;
           window.__lastLatLon = { lat: Number(r.lat), lon: Number(r.lon) };
           try { localStorage.setItem('open-meteo-latlon', JSON.stringify(window.__lastLatLon)); } catch (e) {}
+          try { localStorage.setItem('open-meteo-city', cityName); } catch (e) {}
+          try { localStorage.setItem('open-meteo-country', country); } catch (e) {}
           closeModal();
           window.dispatchEvent(new CustomEvent('location:changed', { detail: window.__lastLatLon }));
         } catch (e) { console.error(e); }
