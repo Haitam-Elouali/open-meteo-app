@@ -66,18 +66,27 @@ function stubFetch(window) {
         precipitation.push(i % 3);
         precipitation_probability.push(i % 40);
       }
-      return Promise.resolve({ json: () => Promise.resolve({ data: { hourly: { time, temperature_2m, relative_humidity_2m, wind_speed_10m, precipitation, precipitation_probability } } }) });
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { hourly: { time, temperature_2m, relative_humidity_2m, wind_speed_10m, precipitation, precipitation_probability } } }) });
     }
-    if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
-    if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
+    if (url.startsWith('/api/weather')) {
+      const u = new URL(url, 'http://localhost');
+      const nameParam = u.searchParams.get('name');
+      if (nameParam) {
+        const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
+        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
+    }
+    if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
       { name: 'Fes', maxTemp: 35 },
       { name: 'Casablanca', maxTemp: 30 },
       { name: 'Rabat', maxTemp: 28 },
       { name: 'Agadir', maxTemp: null },
     ] } }) });
     // weather-sprite.svg etc. – not needed for chart assertions.
-    return Promise.resolve({ json: () => Promise.resolve({}), text: () => Promise.resolve('') });
+    return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
 }
 
@@ -262,11 +271,20 @@ test('curve is vertically centered (y-axis padding applied, not hugging edges)',
       }
       const payload = { data: { hourly: { time, temperature_2m, relative_humidity_2m, wind_speed_10m, precipitation, precipitation_probability } } };
       capturedHourly = payload.data.hourly;
-      return Promise.resolve({ json: () => Promise.resolve(payload) });
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(payload) });
     }
-    if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
-    if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    return Promise.resolve({ json: () => Promise.resolve({}), text: () => Promise.resolve('') });
+    if (url.startsWith('/api/weather')) {
+      const u = new URL(url, 'http://localhost');
+      const nameParam = u.searchParams.get('name');
+      if (nameParam) {
+        const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
+        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
+    }
+    if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
@@ -329,11 +347,20 @@ test('main temperature charted is the 2m temperature from the API', async () => 
       }
       const payload = { data: { hourly: { time, temperature_2m, relative_humidity_2m, wind_speed_10m, precipitation, precipitation_probability } } };
       capturedHourly = payload.data.hourly;
-      return Promise.resolve({ json: () => Promise.resolve(payload) });
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(payload) });
     }
-    if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
-    if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    return Promise.resolve({ json: () => Promise.resolve({}), text: () => Promise.resolve('') });
+    if (url.startsWith('/api/weather')) {
+      const u = new URL(url, 'http://localhost');
+      const nameParam = u.searchParams.get('name');
+      if (nameParam) {
+        const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
+        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
+    }
+    if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
@@ -358,11 +385,11 @@ test('dashboard shows empty state when hourly has no times', async () => {
   loadScript(window, 'components/capitals-ticker.js');
   loadScript(window, 'pages/dashboard/dashboard.js');
   window.fetch = (url) => {
-    if (url.startsWith('/api/hourly')) return Promise.resolve({ json: () => Promise.resolve({ data: { hourly: {} } }) });
-    if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: {} } }) });
-    if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({}) });
-    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { cities: [] } }) });
-    return Promise.resolve({ json: () => Promise.resolve({}) });
+    if (url.startsWith('/api/hourly')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { hourly: {} } }) });
+    if (url.startsWith('/api/weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: {} } }) });
+    if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });
+    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { cities: [] } }) });
+    return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
 
@@ -458,11 +485,20 @@ test('main temperature charted comes from temperature_2m (approx 2m) values', as
       }
       const payload = { data: { hourly: { time, temperature_2m, relative_humidity_2m: [], wind_speed_10m: [], precipitation: [], precipitation_probability: [] } } };
       capturedHourly = payload.data.hourly;
-      return Promise.resolve({ json: () => Promise.resolve(payload) });
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(payload) });
     }
-    if (url.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
-    if (url.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    return Promise.resolve({ json: () => Promise.resolve({}), text: () => Promise.resolve('') });
+    if (url.startsWith('/api/weather')) {
+      const u = new URL(url, 'http://localhost');
+      const nameParam = u.searchParams.get('name');
+      if (nameParam) {
+        const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
+        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
+    }
+    if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
@@ -500,16 +536,25 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
   loadScript(window, 'pages/dashboard/dashboard.js');
   window.fetch = (url) => {
     const u = String(url);
-    if (u.startsWith('/api/weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
-    if (u.startsWith('/api/hourly')) return Promise.resolve({ json: () => Promise.resolve({ data: { hourly: { time: [], temperature_2m: [], relative_humidity_2m: [], wind_speed_10m: [] } } }) });
-    if (u.startsWith('/api/reverse')) return Promise.resolve({ json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    if (u.startsWith('/api/cities-weather')) return Promise.resolve({ json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
+    if (u.startsWith('/api/weather')) {
+      const uu = new URL(url, 'http://localhost');
+      const nameParam = uu.searchParams.get('name');
+      if (nameParam) {
+        const count = nameParam.split(',').length;
+        const currents = Array.from({ length: count }, () => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
+    }
+    if (u.startsWith('/api/hourly')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { hourly: { time: [], temperature_2m: [], relative_humidity_2m: [], wind_speed_10m: [] } } }) });
+    if (u.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
+    if (u.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
       { name: 'Fes', maxTemp: 35 },
       { name: 'Casablanca', maxTemp: 30 },
       { name: 'Rabat', maxTemp: 28 },
       { name: 'Agadir', maxTemp: null },
     ] } }) });
-    return Promise.resolve({ json: () => Promise.resolve({}) });
+    return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
   await new Promise((r) => setTimeout(r, 400));
@@ -522,7 +567,7 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
   const table = window.document.querySelector('#cities-table .cities-table');
   assert.ok(table, 'cities table should render');
   const rows = table.querySelectorAll('tbody tr');
-  assert.equal(rows.length, 4, 'should render all 4 cities (including null maxTemp)');
+  assert.equal(rows.length, 10, 'should render all 10 cities for Morocco');
   const temps = Array.from(rows).map((tr) => {
     const txt = tr.querySelector('td:last-child').textContent.replace('°', '').trim();
     return txt === '--' ? null : Number(txt);
