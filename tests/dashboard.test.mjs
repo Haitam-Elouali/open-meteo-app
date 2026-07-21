@@ -73,8 +73,11 @@ function stubFetch(window) {
       const nameParam = u.searchParams.get('name');
       if (nameParam) {
         const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
-        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
-        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+        const data = {};
+        names.forEach((_, i) => {
+          data[i] = { current: { is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 } };
+        });
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data }) });
       }
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     }
@@ -278,8 +281,11 @@ test('curve is vertically centered (y-axis padding applied, not hugging edges)',
       const nameParam = u.searchParams.get('name');
       if (nameParam) {
         const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
-        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
-        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+        const data = {};
+        names.forEach((_, i) => {
+          data[i] = { current: { is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 } };
+        });
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data }) });
       }
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     }
@@ -354,8 +360,11 @@ test('main temperature charted is the 2m temperature from the API', async () => 
       const nameParam = u.searchParams.get('name');
       if (nameParam) {
         const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
-        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
-        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+        const data = {};
+        names.forEach((_, i) => {
+          data[i] = { current: { is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 } };
+        });
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data }) });
       }
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     }
@@ -492,8 +501,11 @@ test('main temperature charted comes from temperature_2m (approx 2m) values', as
       const nameParam = u.searchParams.get('name');
       if (nameParam) {
         const names = nameParam.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
-        const currents = names.map(() => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
-        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+        const data = {};
+        names.forEach((_, i) => {
+          data[i] = { current: { is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 } };
+        });
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data }) });
       }
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     }
@@ -541,8 +553,11 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
       const nameParam = uu.searchParams.get('name');
       if (nameParam) {
         const count = nameParam.split(',').length;
-        const currents = Array.from({ length: count }, () => ({ is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 }));
-        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: currents } }) });
+        const data = {};
+        Array.from({ length: count }).forEach((_, i) => {
+          data[i] = { current: { is_day: 1, temperature_2m: 20 + Math.round(Math.random() * 15), precipitation: 0, weather_code: 0 } };
+        });
+        return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data }) });
       }
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     }

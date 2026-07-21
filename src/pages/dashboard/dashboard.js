@@ -708,7 +708,11 @@
           if (weatherR.ok) {
             const weatherData = await weatherR.json();
             console.log('[dashboard] batch weather data keys', Object.keys(weatherData?.data || {}));
-            const currents = weatherData?.data?.current || [];
+            const currents = Object.keys(weatherData?.data || {})
+              .filter((k) => !isNaN(Number(k)))
+              .sort((a, b) => Number(a) - Number(b))
+              .map((k) => weatherData.data[k]?.current)
+              .filter(Boolean);
             cities = countryCities.map((c, i) => ({
               name: c.name,
               maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
