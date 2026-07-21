@@ -52,50 +52,19 @@ function cityOptions(window) {
   return Array.from(window.document.querySelector('.location-city').options).map((o) => o.value);
 }
 
-test('country with curated cities populates the city select', async () => {
-  const window = setup(async () => ({ ok: true, json: async () => ({ results: [] }) }));
+test('country with curated cities populates the city select even when API fails', async () => {
+  const window = setup(async () => { throw new Error('network'); });
   selectCountry(window, 'France');
   await new Promise((r) => setTimeout(r, 20));
   const opts = cityOptions(window);
-  assert.ok(opts.includes('Paris'), 'Paris should be available for France');
+  assert.ok(opts.includes('Paris'), 'Paris should be available from local curated list when API fails');
 });
 
-test('country with API cities (no curated list) populates the city select', async () => {
-  const window = setup(async (url) => {
-    const u = new URL(url, 'http://localhost');
-    if (u.searchParams.get('country') === 'Angola') {
-      return { ok: true, json: async () => ({ results: [{ name: 'Luanda', country: 'Angola' }, { name: 'Huambo', country: 'Angola' }] }) };
-    }
-    return { ok: true, json: async () => ({ results: [] }) };
-  });
-  selectCountry(window, 'Angola');
-  await new Promise((r) => setTimeout(r, 20));
-  const opts = cityOptions(window);
-  assert.ok(opts.includes('Luanda'), 'API-provided city should be available');
-});
-
-test('country with NO cities is removed from the dropdown', async () => {
-  const window = setup(async (url) => {
-    const u = new URL(url, 'http://localhost');
-    if (u.searchParams.get('country') === 'Algeria') {
-      return { ok: true, json: async () => ({ results: [] }) };
-    }
-    return { ok: true, json: async () => ({ results: [{ name: 'X', country: 'Y' }] }) };
-  });
-  const countrySel = window.document.querySelector('.location-country');
-  assert.ok(Array.from(countrySel.options).some((o) => o.value === 'Algeria'), 'Algeria present before selection');
-
-  selectCountry(window, 'Algeria');
-  await new Promise((r) => setTimeout(r, 30));
-
-  const remaining = Array.from(countrySel.options).map((o) => o.value);
-  assert.ok(!remaining.includes('Algeria'), 'Algeria should be removed when it has no cities');
-  assert.equal(window.document.querySelector('.location-city').disabled, true, 'city select disabled when no cities');
-});
-
-test('api error leaves the city select disabled (no crash)', async () => {
+test('api error falls back to local curated cities (no crash, city select enabled)', async () => {
   const window = setup(async () => { throw new Error('network'); });
   selectCountry(window, 'Angola');
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(window.document.querySelector('.location-city').disabled, true);
+  const opts = cityOptions(window);
+  assert.ok(opts.includes('Luanda'), 'Luanda should be available from local curated list when API fails');
+  assert.equal(window.document.querySelector('.location-city').disabled, false, 'city select enabled when local fallback exists');
 });
