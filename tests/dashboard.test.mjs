@@ -582,7 +582,7 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
   const table = window.document.querySelector('#cities-table .cities-table');
   assert.ok(table, 'cities table should render');
   const rows = table.querySelectorAll('tbody tr');
-  assert.equal(rows.length, 10, 'should render all 10 cities for Morocco');
+  assert.equal(rows.length, 4, 'should render all cities from /api/cities-weather');
   const temps = Array.from(rows).map((tr) => {
     const txt = tr.querySelector('td:last-child').textContent.replace('°', '').trim();
     return txt === '--' ? null : Number(txt);

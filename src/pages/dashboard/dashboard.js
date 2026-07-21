@@ -692,50 +692,48 @@
           if (empty) empty.remove();
         });
 
-      // Fetch cities data directly from Open-Meteo using a static list of major cities
+      // Fetch ALL cities for the country via /api/cities-weather (covers all
+      // 188 countries and every curated city). Fall back to the static batch
+      // list only if the country is missing or the request fails.
       let cities = [];
-      const countryCities = MAJOR_CITIES_BY_COUNTRY[country];
-      if (countryCities && countryCities.length) {
-        console.log('[dashboard] fetching weather for', countryCities.length, 'cities in', country);
-        try {
-          const lats = countryCities.map(c => c.lat).join(',');
-          const lons = countryCities.map(c => c.lon).join(',');
-          const names = countryCities.map(c => encodeURIComponent(c.name)).join(',');
-          const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}`;
-          console.log('[dashboard] fetching batch weather', weatherUrl);
-          const weatherR = await fetch(weatherUrl);
-          console.log('[dashboard] batch weather status', weatherR.status);
-          if (weatherR.ok) {
-            const weatherData = await weatherR.json();
-            console.log('[dashboard] batch weather data keys', Object.keys(weatherData?.data || {}));
-            const currents = Object.keys(weatherData?.data || {})
-              .filter((k) => !isNaN(Number(k)))
-              .sort((a, b) => Number(a) - Number(b))
-              .map((k) => weatherData.data[k]?.current)
-              .filter(Boolean);
-            cities = countryCities.map((c, i) => ({
-              name: c.name,
-              maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
-            })).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
-            console.log('[dashboard] cities from batch', cities.length, 'first', cities[0]);
-          } else {
-            console.warn('[dashboard] batch weather HTTP', weatherR.status);
-          }
-        } catch (e) {
-          console.error('[dashboard] batch weather fetch failed', e);
-        }
-      }
-      if (!cities.length) {
-        console.warn('[dashboard] no cities for country, trying /api/cities-weather fallback');
+      if (country) {
         try {
           const cwR = await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`);
           if (cwR.ok) {
             const cwData = await cwR.json();
             cities = cwData?.data?.cities || [];
-            console.log('[dashboard] cities-weather fallback cities', cities.length);
+            console.log('[dashboard] cities-weather primary', country, cities.length);
           }
         } catch (e) {
-          console.error('[dashboard] cities-weather fallback failed', e);
+          console.error('[dashboard] cities-weather fetch failed', e);
+        }
+      }
+      if (!cities.length) {
+        console.warn('[dashboard] no cities from cities-weather, trying static batch fallback');
+        const countryCities = MAJOR_CITIES_BY_COUNTRY[country];
+        if (countryCities && countryCities.length) {
+          try {
+            const lats = countryCities.map(c => c.lat).join(',');
+            const lons = countryCities.map(c => c.lon).join(',');
+            const names = countryCities.map(c => encodeURIComponent(c.name)).join(',');
+            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}`;
+            const weatherR = await fetch(weatherUrl);
+            if (weatherR.ok) {
+              const weatherData = await weatherR.json();
+              const currents = Object.keys(weatherData?.data || {})
+                .filter((k) => !isNaN(Number(k)))
+                .sort((a, b) => Number(a) - Number(b))
+                .map((k) => weatherData.data[k]?.current)
+                .filter(Boolean);
+              cities = countryCities.map((c, i) => ({
+                name: c.name,
+                maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
+              })).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
+              console.log('[dashboard] static batch fallback cities', cities.length);
+            }
+          } catch (e) {
+            console.error('[dashboard] batch weather fetch failed', e);
+          }
         }
       }
       if (!cities.length) {
@@ -761,7 +759,7 @@
                 name: c.name,
                 maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
               })).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
-              console.log('[dashboard] fallback cities from', fbCountry, cities.length);
+              console.log('[dashboard] global fallback cities from', fbCountry, cities.length);
               if (cities.length) break;
             }
           } catch (e) { /* ignore */ }
