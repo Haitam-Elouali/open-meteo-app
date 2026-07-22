@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
     return results;
   }
 
-  const results = await mapWithConcurrency(cities, 6, async (city) => {
+  const results = await mapWithConcurrency(cities, 3, async (city) => {
     try {
       const geoUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
       geoUrl.searchParams.set('count', '1');

@@ -86,12 +86,15 @@ function stubFetch(window) {
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: { is_day: 1, temperature_2m: 22, precipitation: 0, weather_code: 0 } } }) });
     }
     if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
-      { name: 'Fes', maxTemp: 35 },
-      { name: 'Casablanca', maxTemp: 30 },
-      { name: 'Rabat', maxTemp: 28 },
-      { name: 'Agadir', maxTemp: null },
-    ] } }) });
+    if (url.startsWith('/api/cities-weather')) {
+      const mockResponse = { data: { country: 'Morocco', cities: [
+        { name: 'Fes', maxTemp: 35 },
+        { name: 'Casablanca', maxTemp: 30 },
+        { name: 'Rabat', maxTemp: 28 },
+        { name: 'Agadir', maxTemp: null },
+      ] } };
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(mockResponse), text: () => Promise.resolve(JSON.stringify(mockResponse)) });
+    }
     return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
 }
@@ -570,12 +573,15 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
     }
     if (u.startsWith('/api/hourly')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { hourly: { time: [], temperature_2m: [], relative_humidity_2m: [], wind_speed_10m: [] } } }) });
     if (u.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
-    if (u.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { country: 'Morocco', cities: [
-      { name: 'Fes', maxTemp: 35 },
-      { name: 'Casablanca', maxTemp: 30 },
-      { name: 'Rabat', maxTemp: 28 },
-      { name: 'Agadir', maxTemp: null },
-    ] } }) });
+    if (u.startsWith('/api/cities-weather')) {
+      const mockResponse = { data: { country: 'Morocco', cities: [
+        { name: 'Fes', maxTemp: 35 },
+        { name: 'Casablanca', maxTemp: 30 },
+        { name: 'Rabat', maxTemp: 28 },
+        { name: 'Agadir', maxTemp: null },
+      ] } };
+      return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(mockResponse), text: () => Promise.resolve(JSON.stringify(mockResponse)) });
+    }
     return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));

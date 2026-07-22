@@ -556,8 +556,9 @@
     const start = Math.max(0, times.length - 24);
     for (let i = start; i < times.length; i++) {
       out.push(arr[i]);
-      const d = new Date(times[i]);
-      labels.push(`${String(d.getHours()).padStart(2, '0')}:00`);
+      const t = String(times[i]).split('T')[1] || '';
+      const parts = t.split(':');
+      labels.push(`${String(parts[0] || '00').padStart(2, '0')}:00`);
     }
     return { values: out, labels };
   }
@@ -570,8 +571,9 @@
     const start = Math.max(0, times.length - maxPoints);
     for (let i = start; i < times.length; i++) {
       out.push(arr[i]);
-      const d = new Date(times[i]);
-      labels.push(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      const t = String(times[i]).split('T')[1] || '';
+      const parts = t.split(':');
+      labels.push(`${String(parts[0] || '00').padStart(2, '0')}:${String(parts[1] || '00').padStart(2, '0')}`);
     }
     return { values: out, labels };
   }
@@ -634,10 +636,10 @@
     console.log('[dashboard] loadDashboard start', { lat, lon });
     try {
       const [weather, minutely, hourly, rev] = await Promise.all([
-        fetch(`/api/weather?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] weather fetch failed', e); return {}; }),
-        fetch(`/api/hourly?lat=${lat}&lon=${lon}&interval=15`).then((r) => r.json()).catch((e) => { console.error('[dashboard] minutely fetch failed', e); return {}; }),
-        fetch(`/api/hourly?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] hourly fetch failed', e); return {}; }),
-        fetch(`/api/reverse?lat=${lat}&lon=${lon}`).then((r) => r.json()).catch((e) => { console.error('[dashboard] reverse fetch failed', e); return {}; })
+        fetch(`/api/weather?lat=${lat}&lon=${lon}`).then(async (r) => { if (!r.ok) throw new Error('weather HTTP ' + r.status); return r.json(); }).catch((e) => { console.error('[dashboard] weather fetch failed', e); return {}; }),
+        fetch(`/api/hourly?lat=${lat}&lon=${lon}&interval=15`).then(async (r) => { if (!r.ok) throw new Error('minutely HTTP ' + r.status); return r.json(); }).catch((e) => { console.error('[dashboard] minutely fetch failed', e); return {}; }),
+        fetch(`/api/hourly?lat=${lat}&lon=${lon}`).then(async (r) => { if (!r.ok) throw new Error('hourly HTTP ' + r.status); return r.json(); }).catch((e) => { console.error('[dashboard] hourly fetch failed', e); return {}; }),
+        fetch(`/api/reverse?lat=${lat}&lon=${lon}`).then(async (r) => { if (!r.ok) throw new Error('reverse HTTP ' + r.status); return r.json(); }).catch((e) => { console.error('[dashboard] reverse fetch failed', e); return {}; })
       ]);
       console.log('[dashboard] reverse result', rev);
       console.log('[dashboard] weather keys', Object.keys(weather?.data || {}));
@@ -661,7 +663,8 @@
       const h15 = minutely?.data?.hourly || {};
       const times15 = h15.time || [];
       const times24 = h24.time || [];
-      console.log('[dashboard] hourly times count', times24.length, 'minutely times count', times15.length);
+      console.log('[dashboard] hourly response keys', Object.keys(hourly?.data || {}), 'times24', times24.length, 'times15', times15.length);
+      if (hourly?.error) console.warn('[dashboard] hourly API error', hourly.error);
 
       ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']
         .forEach((id) => {
@@ -676,11 +679,14 @@
         try {
           const cwR = await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`);
           console.log('[dashboard] cities-weather status', cwR.status);
-          if (cwR.ok) {
-            const cwData = await cwR.json();
-            cities = cwData?.data?.cities || [];
-            console.log('[dashboard] cities-weather cities', cities.length, 'first', cities[0]);
-          }
+           if (cwR.ok) {
+             const raw = await cwR.text();
+             let cwData = {};
+             try { cwData = JSON.parse(raw); } catch (e) {}
+             console.log('[dashboard] cities-weather raw', raw);
+             cities = cwData?.data?.cities || [];
+             console.log('[dashboard] cities-weather cities', cities.length, 'first', cities[0]);
+           }
         } catch (e) {
           console.error('[dashboard] cities-weather fetch failed', e);
         }
@@ -693,7 +699,7 @@
             const lats = countryCities.map(c => c.lat).join(',');
             const lons = countryCities.map(c => c.lon).join(',');
             const names = countryCities.map(c => encodeURIComponent(c.name)).join(',');
-            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}`;
+            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}&forecast_days=1`;
             console.log('[dashboard] fetching batch weather', weatherUrl);
             const weatherR = await fetch(weatherUrl);
             console.log('[dashboard] batch weather status', weatherR.status);
@@ -736,7 +742,7 @@
             const lats = fbCities.map(c => c.lat).join(',');
             const lons = fbCities.map(c => c.lon).join(',');
             const names = fbCities.map(c => encodeURIComponent(c.name)).join(',');
-            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}`;
+            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}&forecast_days=1`;
             const weatherR = await fetch(weatherUrl);
             if (weatherR.ok) {
             const weatherData = await weatherR.json();
@@ -802,6 +808,12 @@
         const wind24 = next24(h24.wind_speed_10m, times24);
         console.log('[dashboard] wind points', wind24.values.length, 'first', wind24.values[0], 'last', wind24.values[wind24.values.length-1]);
         safe('wind-chart', { values: wind24.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind24.labels });
+      } else if (times15.length) {
+        console.log('[dashboard] hourly missing, using 15min fallback for humidity/wind');
+        const hum15 = next15min(h15.relative_humidity_2m, times15);
+        safe('humidity-chart', { values: hum15.values, color: 'rgba(52,211,153,0.85)', label: '%', labels: hum15.labels });
+        const wind15 = next15min(h15.wind_speed_10m, times15);
+        safe('wind-chart', { values: wind15.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind15.labels });
       } else {
         ['humidity-chart', 'wind-chart']
           .forEach((id) => showChartError(id, 'No data'));
