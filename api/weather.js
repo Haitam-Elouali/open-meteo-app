@@ -12,13 +12,15 @@ module.exports = async (req, res) => {
   url.searchParams.set('latitude', la.join(','));
   url.searchParams.set('longitude', lo.join(','));
   url.searchParams.set('timezone', 'auto');
-  url.searchParams.set('forecast_days', String(Number(forecast_days) || 1));
+  url.searchParams.set('forecast_days', String(Number(forecast_days) || 7));
   ['temperature_2m_min', 'temperature_2m_max'].forEach((f) => url.searchParams.append('daily', f));
   ['sunrise', 'sunset', 'precipitation_probability_max', 'weather_code'].forEach((f) => url.searchParams.append('daily', f));
   ['temperature_2m', 'apparent_temperature', 'relative_humidity_2m', 'is_day', 'precipitation', 'wind_speed_10m', 'wind_gusts_10m', 'cloud_cover', 'weather_code'].forEach((f) => url.searchParams.append('current', f));
 
   try {
+    console.log('[weather] request', { lat: la, lon: lo, forecast_days: String(Number(forecast_days) || 7), fields: ['temperature_2m_min', 'temperature_2m_max', 'sunrise', 'sunset', 'precipitation_probability_max', 'weather_code'] });
     const data = await cachedFetchJson(url.toString());
+    console.log('[weather] upstream ok, daily time count', data?.daily?.time?.length, 'precip_prob count', data?.daily?.precipitation_probability_max?.length);
     const names = String(name || '').split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
     res.json({ data, names });
   } catch (e) {

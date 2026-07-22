@@ -495,6 +495,9 @@ function wireUI() {
   const daily = data.daily;
   const current = data.current;
 
+  console.log('[weather-card] daily keys', Object.keys(daily || {}), 'daily time count', daily?.time?.length, 'precip prob count', daily?.precipitation_probability_max?.length);
+  console.log('[weather-card] daily time first/last', daily?.time?.[0], daily?.time?.[daily.time.length - 1]);
+
   setWeatherBackground({
     is_day: current.is_day === 1,
     temperature: current.temperature_2m,

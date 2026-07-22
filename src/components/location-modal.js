@@ -1051,7 +1051,18 @@
     "Sidi Ifni",
     "Sidi Slimane",
     "Sidi Yahya",
-    "Sidi Kacem"
+    "Sidi Kacem",
+    "Jerada",
+    "Taourirt",
+    "Goulmima",
+    "Tinejdad",
+    "Midelt",
+    "Azrou",
+    "Ifrane",
+    "Khemisset",
+    "Tiznit",
+    "Inezgane",
+    "Tafraout"
     ],
     "Mozambique": [
     "Maputo",
