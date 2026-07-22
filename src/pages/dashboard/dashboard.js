@@ -590,22 +590,17 @@
     const endIdx = n - 1;
     const offsetPoints = Math.round(utcOffsetH);
     let startIdx = endIdx - 23 - offsetPoints;
-    if (startIdx < 0) {
-      startIdx = 0;
-      const localNowHour = new Date().getHours();
-      const targetLocalHour = (localNowHour - 24 + 24) % 24;
-      for (let i = n - 1; i >= 0; i--) {
-        const t = String(times[i]).split('T')[1] || '';
-        if (Number(t.split(':')[0]) === targetLocalHour) { startIdx = i; break; }
-      }
-    }
+    if (startIdx < 0) startIdx = Math.max(0, endIdx - 23);
     const count = Math.min(24, endIdx - startIdx + 1);
+    const pad = (x) => String(x).padStart(2, '0');
     for (let i = 0; i < count; i++) {
       const idx = startIdx + i;
       out.push(arr[idx]);
-      const t = String(times[idx]).split('T')[1] || '';
-      const parts = t.split(':');
-      labels.push(`${String(parts[0] || '00').padStart(2, '0')}:00`);
+      const raw = String(times[idx] || '');
+      const timePart = raw.split('T')[1] || '';
+      const hhmm = timePart.split('+')[0].split('Z')[0];
+      const parts = hhmm.split(':');
+      labels.push(`${pad(parts[0] || '00')}:00`);
     }
     console.log('[dashboard] next24', { utcOffsetH, startIdx, endIdx, count, labelsHead: labels.slice(0, 6), labelsTail: labels.slice(-3) });
     return { values: out, labels };
@@ -621,12 +616,15 @@
     let startIdx = endIdx - 95 - offsetPoints;
     if (startIdx < 0) startIdx = Math.max(0, n - 96);
     const count = Math.min(96, endIdx - startIdx + 1);
+    const pad = (x) => String(x).padStart(2, '0');
     for (let i = 0; i < count; i++) {
       const idx = startIdx + i;
       out.push(arr[idx]);
-      const t = String(times[idx]).split('T')[1] || '';
-      const parts = t.split(':');
-      labels.push(`${String(parts[0] || '00').padStart(2, '0')}:${String(parts[1] || '00').padStart(2, '0')}`);
+      const raw = String(times[idx] || '');
+      const timePart = raw.split('T')[1] || '';
+      const hhmm = timePart.split('+')[0].split('Z')[0];
+      const parts = hhmm.split(':');
+      labels.push(`${pad(parts[0] || '00')}:${pad(parts[1] || '00')}`);
     }
     return { values: out, labels };
   }
@@ -718,7 +716,7 @@
       const times24 = h24.time || [];
       const utcOffsetSec = Number(hourly?.data?.utc_offset_seconds) || 0;
       const utcOffsetH = utcOffsetSec / 3600;
-      console.log('[dashboard] hourly response keys', Object.keys(hourly?.data || {}), 'times24', times24.length, 'times15', times15.length, 'utc_offset_sec', utcOffsetSec, 'utc_offset_h', utcOffsetH);
+      console.log('[dashboard] hourly raw first 3 times24:', times24.slice(0, 3), 'last 3 times24:', times24.slice(-3), 'utc_offset_seconds', utcOffsetSec, 'utc_offset_h', utcOffsetH);
       if (hourly?.error) console.warn('[dashboard] hourly API error', hourly.error);
 
       ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']
@@ -840,7 +838,7 @@
       if (times24.length) {
         const temp24 = next24(h24.temperature_2m, times24, utcOffsetH);
         const temp24cut = { values: temp24.values.slice(0, MAX_POINTS), labels: temp24.labels.slice(0, MAX_POINTS) };
-        console.log('[dashboard] temp hourly points', temp24cut.values.length, 'first', temp24cut.values[0], 'last', temp24cut.values[temp24cut.values.length-1], 'labels', temp24cut.labels.slice(0,4), '...', temp24cut.labels.slice(-4));
+        console.log('[dashboard] temp hourly points', temp24cut.values.length, 'first', temp24cut.values[0], 'last', temp24cut.values[temp24cut.values.length-1], 'labels', temp24cut.labels.slice(0,4), '...', temp24cut.labels.slice(-4), 'source=temperature_2m');
         safe('temp-15min-chart', { values: temp24cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp24cut.labels });
         const titleEl = document.getElementById('temp-15min-title');
         if (titleEl) {
