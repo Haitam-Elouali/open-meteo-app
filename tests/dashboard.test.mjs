@@ -87,12 +87,12 @@ function stubFetch(window) {
     }
     if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
     if (url.startsWith('/api/cities-weather')) {
-      const mockResponse = { data: { country: 'Morocco', cities: [
+      const mockResponse = { country: 'Morocco', cities: [
         { name: 'Fes', maxTemp: 35 },
         { name: 'Casablanca', maxTemp: 30 },
         { name: 'Rabat', maxTemp: 28 },
         { name: 'Agadir', maxTemp: null },
-      ] } };
+      ] };
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(mockResponse), text: () => Promise.resolve(JSON.stringify(mockResponse)) });
     }
     return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
@@ -168,7 +168,7 @@ function assertConstantMainGrid(xLabels, id) {
   assert.ok(IS_X_LABEL(xLabels[xLabels.length - 1].text), `last label not a clock hour in ${id}`);
 }
 
-test('x-axis anchored to current quarter-hour, constant grid, marks the end (no empty space)', async () => {
+test('x-axis anchored to current hour, constant grid, marks the end (no empty space)', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -182,19 +182,18 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
   await new Promise((r) => setTimeout(r, 400));
 
   const now = new Date();
-  const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
   const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
 
-  // temp-15min-chart uses 15-min data → quarter-hour labels (oldest to newest).
-  const ids15 = ['temp-15min-chart'];
-  for (const id of ids15) {
+  // All charts now use hourly 24h data → hour labels (oldest to newest).
+  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
+  for (const id of ids) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
     assert.ok(canvas, `no canvas in ${id}`);
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assertConstantMainGrid(xLabels, id);
-    assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last x label should be current quarter-hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentH, `last x label should be current hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 
   // humidity-chart and wind-chart use 24h hourly data → hour labels (oldest to newest).
@@ -210,7 +209,7 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
   }
 });
 
-test('x-axis spans a full 24h window: starts at current quarter-hour and spans 24h', async () => {
+test('x-axis spans a full 24h window: current hour to same hour 24h later', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -224,24 +223,11 @@ test('x-axis spans a full 24h window: starts at current quarter-hour and spans 2
   await new Promise((r) => setTimeout(r, 400));
 
   const now = new Date();
-  const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
-
-  // temp-15min-chart uses 15-min data → quarter-hour labels (oldest to newest).
-  const ids15 = ['temp-15min-chart'];
-  for (const id of ids15) {
-    const c = window.document.getElementById(id);
-    const canvas = c && c.querySelector('canvas');
-    assert.ok(canvas, `no canvas in ${id}`);
-    const rec = perCanvas.get(canvas) || [];
-    const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
-    assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last label should be current quarter-hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
-  }
-
-  // humidity-chart and wind-chart use 24h hourly data → hour labels (oldest to newest).
   const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
-  const ids24 = ['humidity-chart', 'wind-chart'];
-  for (const id of ids24) {
+
+  // All charts use hourly 24h data → hour labels (oldest to newest).
+  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
+  for (const id of ids) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
     assert.ok(canvas, `no canvas in ${id}`);
@@ -407,7 +393,7 @@ test('dashboard shows empty state when hourly has no times', async () => {
     if (url.startsWith('/api/hourly')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { hourly: {} } }) });
     if (url.startsWith('/api/weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { current: {} } }) });
     if (url.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });
-    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { cities: [] } }) });
+    if (url.startsWith('/api/cities-weather')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ cities: [] }) });
     return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });
   };
   window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
@@ -431,24 +417,11 @@ test('every diagram x-axis spans the previous 24h window up to current time', as
   await new Promise((r) => setTimeout(r, 400));
 
   const now = new Date();
-  const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
-
-  // temp-15min-chart uses 15-min data → quarter-hour labels going backward.
-  const ids15 = ['temp-15min-chart'];
-  for (const id of ids15) {
-    const c = window.document.getElementById(id);
-    const canvas = c && c.querySelector('canvas');
-    assert.ok(canvas, `no canvas in ${id}`);
-    const rec = perCanvas.get(canvas) || [];
-    const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
-    assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last label should be current quarter-hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
-  }
-
-  // humidity-chart and wind-chart use 24h hourly data → hour labels going backward.
   const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
-  const ids24 = ['humidity-chart', 'wind-chart'];
-  for (const id of ids24) {
+
+  // All charts use hourly 24h data → hour labels going backward (previous 24h).
+  const ids = ['temp-15min-chart', 'humidity-chart', 'wind-chart'];
+  for (const id of ids) {
     const c = window.document.getElementById(id);
     const canvas = c && c.querySelector('canvas');
     assert.ok(canvas, `no canvas in ${id}`);
@@ -459,7 +432,7 @@ test('every diagram x-axis spans the previous 24h window up to current time', as
   }
 });
 
-test('15-min temperature chart x-axis ends at current quarter-hour (previous 24h)', async () => {
+test('hourly temperature chart x-axis ends at current hour (previous 24h)', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -475,11 +448,10 @@ test('15-min temperature chart x-axis ends at current quarter-hour (previous 24h
   const canvas = c && c.querySelector('canvas');
   const rec = perCanvas.get(canvas) || [];
   const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
-  assert.ok(xLabels.length >= 2, `expected >=2 x labels on 15-min chart, got ${xLabels.length}: ${xLabels.map((l)=>l.text).join(',')}`);
-  // Last label should be the current quarter-hour (e.g. "14:30" or "14:45").
+  assert.ok(xLabels.length >= 2, `expected >=2 x labels on hourly temp chart, got ${xLabels.length}: ${xLabels.map((l)=>l.text).join(',')}`);
   const now = new Date();
-  const currentQ = `${String(now.getHours()).padStart(2,'0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2,'0')}`;
-  assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last label should be current quarter-hour ${currentQ}, got ${xLabels[xLabels.length - 1].text}`);
+  const currentH = `${String(now.getHours()).padStart(2,'0')}:00`;
+  assert.equal(xLabels[xLabels.length - 1].text, currentH, `last label should be current hour ${currentH}, got ${xLabels[xLabels.length - 1].text}`);
 });
 
 test('main temperature charted comes from temperature_2m (approx 2m) values', async () => {
@@ -574,12 +546,12 @@ test('cities table is the first widget and renders rows sorted by max temp desc'
     if (u.startsWith('/api/hourly')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ data: { hourly: { time: [], temperature_2m: [], relative_humidity_2m: [], wind_speed_10m: [] } } }) });
     if (u.startsWith('/api/reverse')) return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ city: 'Rabat', country: 'Morocco' }) });
     if (u.startsWith('/api/cities-weather')) {
-      const mockResponse = { data: { country: 'Morocco', cities: [
+      const mockResponse = { country: 'Morocco', cities: [
         { name: 'Fes', maxTemp: 35 },
         { name: 'Casablanca', maxTemp: 30 },
         { name: 'Rabat', maxTemp: 28 },
         { name: 'Agadir', maxTemp: null },
-      ] } };
+      ] };
       return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve(mockResponse), text: () => Promise.resolve(JSON.stringify(mockResponse)) });
     }
     return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}) });

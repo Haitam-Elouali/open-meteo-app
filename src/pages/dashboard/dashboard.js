@@ -460,6 +460,7 @@
           const min = m && m[2] ? String(Number(m[2])) : '00';
           return `${String(h).padStart(2, '0')}:${min.padStart(2, '0')}`;
         })();
+        console.log('[dashboard] drawChart', containerId, 'labels', labels ? labels.slice(0, 6) : null, '... endLabel', endLabel);
         ctx.font = '11px Roboto, Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -684,7 +685,7 @@
              let cwData = {};
              try { cwData = JSON.parse(raw); } catch (e) {}
              console.log('[dashboard] cities-weather raw', raw);
-             cities = cwData?.data?.cities || [];
+             cities = cwData?.cities || [];
              console.log('[dashboard] cities-weather cities', cities.length, 'first', cities[0]);
            }
         } catch (e) {
@@ -780,16 +781,10 @@
         catch (e) { console.error('[dashboard] drawChart failed for', id, e); showChartError(id, 'No data'); }
       };
 
-      if (times15.length) {
-        const temp15 = next15min(h15.temperature_2m, times15);
-        const temp15cut = { values: temp15.values.slice(0, MAX_POINTS), labels: temp15.labels.slice(0, MAX_POINTS) };
-        console.log('[dashboard] temp-15min points', temp15cut.values.length, 'first', temp15cut.values[0], 'last', temp15cut.values[temp15cut.values.length-1]);
-        safe('temp-15min-chart', { values: temp15cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp15cut.labels });
-        const titleEl = document.getElementById('temp-15min-title');
-        if (titleEl) titleEl.setAttribute('data-i18n', 'dashboard.temp');
-      } else if (times24.length) {
+      if (times24.length) {
         const temp24 = next24(h24.temperature_2m, times24);
         const temp24cut = { values: temp24.values.slice(0, MAX_POINTS), labels: temp24.labels.slice(0, MAX_POINTS) };
+        console.log('[dashboard] temp hourly points', temp24cut.values.length, 'first', temp24cut.values[0], 'last', temp24cut.values[temp24cut.values.length-1], 'labels', temp24cut.labels.slice(0,4), '...', temp24cut.labels.slice(-4));
         safe('temp-15min-chart', { values: temp24cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp24cut.labels });
         const titleEl = document.getElementById('temp-15min-title');
         if (titleEl) {
@@ -803,10 +798,10 @@
       // Humidity and wind: show PREVIOUS 24h going backward from current time.
       if (times24.length) {
         const hum24 = next24(h24.relative_humidity_2m, times24);
-        console.log('[dashboard] humidity points', hum24.values.length, 'first', hum24.values[0], 'last', hum24.values[hum24.values.length-1]);
+        console.log('[dashboard] humidity points', hum24.values.length, 'first', hum24.values[0], 'last', hum24.values[hum24.values.length-1], 'labels', hum24.labels.slice(0,4), '...', hum24.labels.slice(-4));
         safe('humidity-chart', { values: hum24.values, color: 'rgba(52,211,153,0.85)', label: '%', labels: hum24.labels });
         const wind24 = next24(h24.wind_speed_10m, times24);
-        console.log('[dashboard] wind points', wind24.values.length, 'first', wind24.values[0], 'last', wind24.values[wind24.values.length-1]);
+        console.log('[dashboard] wind points', wind24.values.length, 'first', wind24.values[0], 'last', wind24.values[wind24.values.length-1], 'labels', wind24.labels.slice(0,4), '...', wind24.labels.slice(-4));
         safe('wind-chart', { values: wind24.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind24.labels });
       } else if (times15.length) {
         console.log('[dashboard] hourly missing, using 15min fallback for humidity/wind');
