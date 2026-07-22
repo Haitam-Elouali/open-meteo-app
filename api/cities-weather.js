@@ -8,12 +8,11 @@ module.exports = async (req, res) => {
   }
 
   const cities = CITIES_BY_COUNTRY[country] || [];
+  console.log('[cities-weather] country', country, 'cities count', cities.length);
   if (!cities.length) {
     return res.json({ country, cities: [] });
   }
 
-  // Geocode each city to lat/lon, then fetch daily max temperature.
-  // Run with bounded concurrency so we don't hammer upstream APIs.
   async function mapWithConcurrency(items, size, worker) {
     const results = new Array(items.length);
     let cursor = 0;
@@ -34,29 +33,34 @@ module.exports = async (req, res) => {
 
   const results = await mapWithConcurrency(cities, 6, async (city) => {
     try {
-      // Geocode city -> lat/lon
       const geoUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
       geoUrl.searchParams.set('count', '1');
       geoUrl.searchParams.set('language', 'en');
       geoUrl.searchParams.set('name', city);
-      if (country) geoUrl.searchParams.set('country', country);
-
       const geo = await cachedFetchJson(geoUrl.toString());
-      const loc = geo?.results?.[0];
+      let loc = geo?.results?.[0];
       if (!loc || isBlockedCountry(loc.country)) {
-        return { name: city, maxTemp: null, error: 'not found' };
+        const geoWithCountry = new URL(geoUrl.toString());
+        geoWithCountry.searchParams.set('country', country);
+        const geo2 = await cachedFetchJson(geoWithCountry.toString());
+        loc = geo2?.results?.[0];
+      }
+      console.log('[cities-weather] geocode', city, '->', loc ? `${loc.latitude},${loc.longitude},${loc.country}` : 'NOT FOUND');
+      if (!loc || isBlockedCountry(loc.country)) {
+        return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null };
       }
 
-      // Fetch daily max temperature for this city
       const weatherUrl = new URL('https://api.open-meteo.com/v1/forecast');
       weatherUrl.searchParams.set('latitude', String(loc.latitude));
       weatherUrl.searchParams.set('longitude', String(loc.longitude));
       weatherUrl.searchParams.set('timezone', 'auto');
-      weatherUrl.searchParams.set('forecast_days', '1');
+      weatherUrl.searchParams.set('forecast_days', '2');
       weatherUrl.searchParams.append('daily', 'temperature_2m_max');
 
+      console.log('[cities-weather] weather url', weatherUrl.toString());
       const weather = await cachedFetchJson(weatherUrl.toString());
       const maxTemp = weather?.daily?.temperature_2m_max?.[0];
+      console.log('[cities-weather] weather', city, 'maxTemp', maxTemp);
 
       return {
         name: city,
@@ -65,11 +69,12 @@ module.exports = async (req, res) => {
         maxTemp: Number.isFinite(maxTemp) ? Math.round(maxTemp) : null,
       };
     } catch (e) {
-      return { name: city, maxTemp: null, error: String(e?.message || e) };
+      console.error('[cities-weather] error for', city, e);
+      return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null };
     }
   });
 
-  // Sort descending by maxTemp (highest first), push nulls to the end.
+  console.log('[cities-weather] results count', results.length, 'errors', results.filter(r => r instanceof Error || r.error).length);
   const sorted = results
     .filter((r) => !(r instanceof Error))
     .sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));

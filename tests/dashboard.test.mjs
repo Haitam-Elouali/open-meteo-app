@@ -53,13 +53,17 @@ function stubFetch(window) {
   window.fetch = (url) => {
     if (url.startsWith('/api/hourly')) {
       const use15 = url.includes('interval=15');
-      const base = new Date(); base.setMinutes(0, 0, 0);
+      const rawNow = new Date();
+      const quarter = Math.floor(rawNow.getMinutes() / 15) * 15;
+      const now = new Date(rawNow.getFullYear(), rawNow.getMonth(), rawNow.getDate(), rawNow.getHours(), quarter, 0);
       const time = [], temperature_2m = [], relative_humidity_2m = [], wind_speed_10m = [], precipitation = [], precipitation_probability = [];
       const count = use15 ? 96 : 72;
       const stepMs = use15 ? 15 * 60 * 1000 : 3600 * 1000;
+      const pad = (n) => String(n).padStart(2, '0');
       for (let i = 0; i < count; i++) {
-        const d = new Date(base.getTime() + i * stepMs);
-        time.push(d.toISOString().slice(0, use15 ? 16 : 16));
+        const d = new Date(now.getTime() - (count - 1 - i) * stepMs);
+        const local = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+        time.push(local);
         temperature_2m.push(20 + (i % 5));
         relative_humidity_2m.push(50 + (i % 10));
         wind_speed_10m.push(10 + (i % 4));
@@ -88,7 +92,6 @@ function stubFetch(window) {
       { name: 'Rabat', maxTemp: 28 },
       { name: 'Agadir', maxTemp: null },
     ] } }) });
-    // weather-sprite.svg etc. – not needed for chart assertions.
     return Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({}), text: () => Promise.resolve('') });
   };
 }
@@ -179,7 +182,7 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
   const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
   const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
 
-  // temp-15min-chart uses 15-min data → quarter-hour labels.
+  // temp-15min-chart uses 15-min data → quarter-hour labels (oldest to newest).
   const ids15 = ['temp-15min-chart'];
   for (const id of ids15) {
     const c = window.document.getElementById(id);
@@ -188,10 +191,10 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assertConstantMainGrid(xLabels, id);
-    assert.equal(xLabels[0].text, currentQ, `first x label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last x label should be current quarter-hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 
-  // humidity-chart and wind-chart use 24h hourly data → hour labels.
+  // humidity-chart and wind-chart use 24h hourly data → hour labels (oldest to newest).
   const ids24 = ['humidity-chart', 'wind-chart'];
   for (const id of ids24) {
     const c = window.document.getElementById(id);
@@ -200,7 +203,7 @@ test('x-axis anchored to current quarter-hour, constant grid, marks the end (no 
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assertConstantMainGrid(xLabels, id);
-    assert.equal(xLabels[0].text, currentH, `first x label should be current hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentH, `last x label should be current hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 });
 
@@ -220,7 +223,7 @@ test('x-axis spans a full 24h window: starts at current quarter-hour and spans 2
   const now = new Date();
   const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  // temp-15min-chart uses 15-min data → quarter-hour labels.
+  // temp-15min-chart uses 15-min data → quarter-hour labels (oldest to newest).
   const ids15 = ['temp-15min-chart'];
   for (const id of ids15) {
     const c = window.document.getElementById(id);
@@ -229,10 +232,10 @@ test('x-axis spans a full 24h window: starts at current quarter-hour and spans 2
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last label should be current quarter-hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 
-  // humidity-chart and wind-chart use 24h hourly data → hour labels starting from current hour.
+  // humidity-chart and wind-chart use 24h hourly data → hour labels (oldest to newest).
   const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
   const ids24 = ['humidity-chart', 'wind-chart'];
   for (const id of ids24) {
@@ -242,7 +245,7 @@ test('x-axis spans a full 24h window: starts at current quarter-hour and spans 2
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[0].text, currentH, `first label should be current hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentH, `last label should be current hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 });
 
@@ -261,11 +264,15 @@ test('curve is vertically centered (y-axis padding applied, not hugging edges)',
   let capturedHourly = null;
   window.fetch = (url) => {
     if (url.startsWith('/api/hourly')) {
-      const base = new Date(); base.setMinutes(0, 0, 0);
+      const rawNow = new Date();
+      const quarter = Math.floor(rawNow.getMinutes() / 15) * 15;
+      const now = new Date(rawNow.getFullYear(), rawNow.getMonth(), rawNow.getDate(), rawNow.getHours(), quarter, 0);
       const time = [], temperature_2m = [], relative_humidity_2m = [], wind_speed_10m = [], precipitation = [], precipitation_probability = [];
+      const pad = (n) => String(n).padStart(2, '0');
       for (let i = 0; i < 72; i++) {
-        const d = new Date(base.getTime() + i * 3600 * 1000);
-        time.push(d.toISOString().slice(0, 16));
+        const d = new Date(now.getTime() - (71 - i) * 3600 * 1000);
+        const local = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+        time.push(local);
         temperature_2m.push(5 + i);
         relative_humidity_2m.push(40 + (i % 21));
         wind_speed_10m.push(10 + (i % 4));
@@ -408,7 +415,7 @@ test('dashboard shows empty state when hourly has no times', async () => {
   assert.ok(c.querySelector('.chart-empty'), 'expected empty-state when no hourly data');
 });
 
-test('every diagram x-axis spans the 24h window (current hour -> same hour)', async () => {
+test('every diagram x-axis spans the previous 24h window up to current time', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -423,7 +430,7 @@ test('every diagram x-axis spans the 24h window (current hour -> same hour)', as
   const now = new Date();
   const currentQ = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2, '0')}`;
 
-  // temp-15min-chart uses 15-min data → quarter-hour labels.
+  // temp-15min-chart uses 15-min data → quarter-hour labels going backward.
   const ids15 = ['temp-15min-chart'];
   for (const id of ids15) {
     const c = window.document.getElementById(id);
@@ -432,10 +439,10 @@ test('every diagram x-axis spans the 24h window (current hour -> same hour)', as
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last label should be current quarter-hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 
-  // humidity-chart and wind-chart use 24h hourly data → hour labels starting from current hour.
+  // humidity-chart and wind-chart use 24h hourly data → hour labels going backward.
   const currentH = `${String(now.getHours()).padStart(2, '0')}:00`;
   const ids24 = ['humidity-chart', 'wind-chart'];
   for (const id of ids24) {
@@ -445,11 +452,11 @@ test('every diagram x-axis spans the 24h window (current hour -> same hour)', as
     const rec = perCanvas.get(canvas) || [];
     const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
     assert.ok(xLabels.length >= 2, `too few x labels in ${id}: ${xLabels.map((l) => l.text).join(',')}`);
-    assert.equal(xLabels[0].text, currentH, `first label should be current hour in ${id}: got ${xLabels[0].text}`);
+    assert.equal(xLabels[xLabels.length - 1].text, currentH, `last label should be current hour in ${id}: got ${xLabels[xLabels.length - 1].text}`);
   }
 });
 
-test('15-min temperature chart x-axis shows quarter-hour labels starting from current time', async () => {
+test('15-min temperature chart x-axis ends at current quarter-hour (previous 24h)', async () => {
   const window = makeDom();
   loadScript(window, 'components/units.js');
   loadScript(window, 'components/i18n.js');
@@ -466,10 +473,10 @@ test('15-min temperature chart x-axis shows quarter-hour labels starting from cu
   const rec = perCanvas.get(canvas) || [];
   const xLabels = rec.filter((t) => IS_X_LABEL(t.text));
   assert.ok(xLabels.length >= 2, `expected >=2 x labels on 15-min chart, got ${xLabels.length}: ${xLabels.map((l)=>l.text).join(',')}`);
-  // First label should be the current quarter-hour (e.g. "14:30" or "14:45").
+  // Last label should be the current quarter-hour (e.g. "14:30" or "14:45").
   const now = new Date();
   const currentQ = `${String(now.getHours()).padStart(2,'0')}:${String(Math.floor(now.getMinutes()/15)*15).padStart(2,'0')}`;
-  assert.equal(xLabels[0].text, currentQ, `first label should be current quarter-hour ${currentQ}, got ${xLabels[0].text}`);
+  assert.equal(xLabels[xLabels.length - 1].text, currentQ, `last label should be current quarter-hour ${currentQ}, got ${xLabels[xLabels.length - 1].text}`);
 });
 
 test('main temperature charted comes from temperature_2m (approx 2m) values', async () => {

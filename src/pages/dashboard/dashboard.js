@@ -450,16 +450,15 @@
         });
 
         // x-axis time labels with tick marks. Always visible on the diagram.
-        // The axis spans a full 24h rolling window anchored to NOW: position 0
-        // is the current hour (e.g. "15:00") and the right edge is the SAME
-        // hour the next day ("15:00" again), so it reads 15:00 -> 15:00.
+        // The axis spans the data range: the right edge is the last (newest)
+        // point in the series, i.e. the current time.
         const X_STEP_HOURS = 4;
-        // The end label shows the current hour rolled forward 24h (same hour
-        // next day) so the window visibly closes 15:00 -> 15:00.
         const endLabel = (() => {
-          const m = labels && labels[0] && String(labels[0]).match(/^(\d{1,2})/);
+          const last = labels && labels[labels.length - 1];
+          const m = last && String(last).match(/^(\d{1,2})(?::(\d{2}))?/);
           const h = m ? Number(m[1]) : 0;
-          return `${String(h).padStart(2, '0')}:00`;
+          const min = m && m[2] ? String(Number(m[2])) : '00';
+          return `${String(h).padStart(2, '0')}:${min.padStart(2, '0')}`;
         })();
         ctx.font = '11px Roboto, Arial, sans-serif';
         ctx.textAlign = 'center';
@@ -554,20 +553,11 @@
     const out = [];
     const labels = [];
     if (!times || !times.length || !arr || !arr.length) return { values: out, labels };
-    const currentHour = new Date().getHours();
-    let startIdx = times.findIndex((t) => new Date(t).getHours() === currentHour);
-    if (startIdx < 0) startIdx = 0;
-    for (let i = startIdx; i < times.length && out.length < 24; i++) {
+    const start = Math.max(0, times.length - 24);
+    for (let i = start; i < times.length; i++) {
       out.push(arr[i]);
       const d = new Date(times[i]);
       labels.push(`${String(d.getHours()).padStart(2, '0')}:00`);
-    }
-    if (!out.length) {
-      for (let i = 0; i < 24 && i < arr.length; i++) {
-        out.push(arr[i]);
-        const d = new Date(times[i]);
-        labels.push(`${String(d.getHours()).padStart(2, '0')}:00`);
-      }
     }
     return { values: out, labels };
   }
@@ -576,27 +566,12 @@
     const out = [];
     const labels = [];
     if (!times || !times.length || !arr || !arr.length) return { values: out, labels };
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentQuarter = Math.floor(currentMinute / 15) * 15;
-    let startIdx = times.findIndex((t) => {
-      const d = new Date(t);
-      return d.getHours() === currentHour && d.getMinutes() === currentQuarter;
-    });
-    if (startIdx < 0) startIdx = 0;
-    const maxPoints = 96; // 24h * 4 per hour
-    for (let i = startIdx; i < times.length && out.length < maxPoints; i++) {
+    const maxPoints = 96;
+    const start = Math.max(0, times.length - maxPoints);
+    for (let i = start; i < times.length; i++) {
       out.push(arr[i]);
       const d = new Date(times[i]);
       labels.push(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
-    }
-    if (!out.length) {
-      for (let i = 0; i < maxPoints && i < arr.length; i++) {
-        out.push(arr[i]);
-        const d = new Date(times[i]);
-        labels.push(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
-      }
     }
     return { values: out, labels };
   }
@@ -642,7 +617,7 @@
       const tdName = document.createElement('td');
       tdName.textContent = c.name;
       const tdTemp = document.createElement('td');
-      tdTemp.textContent = c.maxTemp != null ? `${c.maxTemp}°` : '--';
+      tdTemp.textContent = c.maxTemp != null ? `${U.temp(c.maxTemp)}°` : '--';
       tr.appendChild(tdName);
       tr.appendChild(tdTemp);
       tbody.appendChild(tr);
@@ -676,8 +651,11 @@
         weatherCode: current.weather_code
       });
 
-      const country = rev?.country || '';
-      console.log('[dashboard] country from reverse', country);
+      // Use the country selected in the location modal (saved to localStorage),
+      // fall back to reverse-geocoded country so the table/modal stay in sync.
+      const savedCountry = (() => { try { return localStorage.getItem('open-meteo-country'); } catch (e) { return ''; } })();
+      const country = savedCountry || rev?.country || '';
+      console.log('[dashboard] country for cities table', { savedCountry, country });
 
       const h24 = hourly?.data?.hourly || {};
       const h15 = minutely?.data?.hourly || {};
@@ -692,17 +670,16 @@
           if (empty) empty.remove();
         });
 
-      // Fetch ALL cities for the country via /api/cities-weather (covers all
-      // 188 countries and every curated city). Fall back to the static batch
-      // list only if the country is missing or the request fails.
+      // Cities table: 1:1 with modal cities for the selected country.
       let cities = [];
       if (country) {
         try {
           const cwR = await fetch(`/api/cities-weather?country=${encodeURIComponent(country)}`);
+          console.log('[dashboard] cities-weather status', cwR.status);
           if (cwR.ok) {
             const cwData = await cwR.json();
             cities = cwData?.data?.cities || [];
-            console.log('[dashboard] cities-weather primary', country, cities.length);
+            console.log('[dashboard] cities-weather cities', cities.length, 'first', cities[0]);
           }
         } catch (e) {
           console.error('[dashboard] cities-weather fetch failed', e);
@@ -717,19 +694,32 @@
             const lons = countryCities.map(c => c.lon).join(',');
             const names = countryCities.map(c => encodeURIComponent(c.name)).join(',');
             const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}`;
+            console.log('[dashboard] fetching batch weather', weatherUrl);
             const weatherR = await fetch(weatherUrl);
+            console.log('[dashboard] batch weather status', weatherR.status);
             if (weatherR.ok) {
-              const weatherData = await weatherR.json();
-              const currents = Object.keys(weatherData?.data || {})
-                .filter((k) => !isNaN(Number(k)))
-                .sort((a, b) => Number(a) - Number(b))
-                .map((k) => weatherData.data[k]?.current)
-                .filter(Boolean);
-              cities = countryCities.map((c, i) => ({
+            const weatherData = await weatherR.json();
+            console.log('[dashboard] batch weather data keys', Object.keys(weatherData?.data || {}));
+            const dailyMax = weatherData?.data?.daily?.temperature_2m_max || [];
+            const currents = Object.keys(weatherData?.data || {})
+              .filter((k) => !isNaN(Number(k)))
+              .sort((a, b) => Number(a) - Number(b))
+              .map((k) => weatherData.data[k]?.current)
+              .filter(Boolean);
+            console.log('[dashboard] batch currents count', currents.length, 'dailyMax count', dailyMax.length, 'expected', countryCities.length);
+            cities = countryCities.map((c, i) => {
+              const daily = dailyMax[i];
+              const currentTemp = currents[i]?.temperature_2m;
+              const maxTemp = daily != null ? Math.round(daily) : (currentTemp != null ? Math.round(currentTemp) : null);
+              console.log('[dashboard] city', c.name, 'dailyMax', daily, 'currentTemp', currentTemp, 'final maxTemp', maxTemp);
+              return {
                 name: c.name,
-                maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
-              })).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
-              console.log('[dashboard] static batch fallback cities', cities.length);
+                maxTemp: maxTemp,
+              };
+            }).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
+            console.log('[dashboard] cities from batch', cities.length, 'first', cities[0]);
+            } else {
+              console.warn('[dashboard] batch weather HTTP', weatherR.status);
             }
           } catch (e) {
             console.error('[dashboard] batch weather fetch failed', e);
@@ -749,17 +739,24 @@
             const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}`;
             const weatherR = await fetch(weatherUrl);
             if (weatherR.ok) {
-              const weatherData = await weatherR.json();
-              const currents = Object.keys(weatherData?.data || {})
-                .filter((k) => !isNaN(Number(k)))
-                .sort((a, b) => Number(a) - Number(b))
-                .map((k) => weatherData.data[k]?.current)
-                .filter(Boolean);
-              cities = fbCities.map((c, i) => ({
+            const weatherData = await weatherR.json();
+            const currents = Object.keys(weatherData?.data || {})
+              .filter((k) => !isNaN(Number(k)))
+              .sort((a, b) => Number(a) - Number(b))
+              .map((k) => weatherData.data[k]?.current)
+              .filter(Boolean);
+            const dailyMax = weatherData?.data?.daily?.temperature_2m_max || [];
+            cities = fbCities.map((c, i) => {
+              const daily = dailyMax[i];
+              const currentTemp = currents[i]?.temperature_2m;
+              const maxTemp = daily != null ? Math.round(daily) : (currentTemp != null ? Math.round(currentTemp) : null);
+              console.log('[dashboard] fallback city', c.name, 'dailyMax', daily, 'currentTemp', currentTemp, 'final maxTemp', maxTemp);
+              return {
                 name: c.name,
-                maxTemp: currents[i]?.temperature_2m != null ? Math.round(currents[i].temperature_2m) : null,
-              })).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
-              console.log('[dashboard] global fallback cities from', fbCountry, cities.length);
+                maxTemp: maxTemp,
+              };
+            }).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
+            console.log('[dashboard] fallback cities from', fbCountry, cities.length);
               if (cities.length) break;
             }
           } catch (e) { /* ignore */ }
@@ -770,9 +767,8 @@
       console.log('[dashboard] cities-table container exists', !!container);
       renderCitiesTable('cities-table', cities);
 
-      // Temperature chart: prefer 15-min data, fall back to hourly.
-      const MAX_15MIN_POINTS = 48;
-      const MAX_HOURLY_POINTS = 24;
+      // Temperature chart: show PREVIOUS 24h going backward from current time.
+      const MAX_POINTS = 96;
       const safe = (id, series) => {
         try { drawChart(id, series); }
         catch (e) { console.error('[dashboard] drawChart failed for', id, e); showChartError(id, 'No data'); }
@@ -780,28 +776,31 @@
 
       if (times15.length) {
         const temp15 = next15min(h15.temperature_2m, times15);
-        const temp15cut = { values: temp15.values.slice(0, MAX_15MIN_POINTS), labels: temp15.labels.slice(0, MAX_15MIN_POINTS) };
+        const temp15cut = { values: temp15.values.slice(0, MAX_POINTS), labels: temp15.labels.slice(0, MAX_POINTS) };
+        console.log('[dashboard] temp-15min points', temp15cut.values.length, 'first', temp15cut.values[0], 'last', temp15cut.values[temp15cut.values.length-1]);
         safe('temp-15min-chart', { values: temp15cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp15cut.labels });
         const titleEl = document.getElementById('temp-15min-title');
-        if (titleEl) titleEl.setAttribute('data-i18n', 'dashboard.temp15min');
+        if (titleEl) titleEl.setAttribute('data-i18n', 'dashboard.temp');
       } else if (times24.length) {
         const temp24 = next24(h24.temperature_2m, times24);
-        const temp24cut = { values: temp24.values.slice(0, MAX_HOURLY_POINTS), labels: temp24.labels.slice(0, MAX_HOURLY_POINTS) };
+        const temp24cut = { values: temp24.values.slice(0, MAX_POINTS), labels: temp24.labels.slice(0, MAX_POINTS) };
         safe('temp-15min-chart', { values: temp24cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp24cut.labels });
         const titleEl = document.getElementById('temp-15min-title');
         if (titleEl) {
-          titleEl.setAttribute('data-i18n', 'dashboard.tempHourly');
+          titleEl.setAttribute('data-i18n', 'dashboard.temp');
           window.I18n?.apply?.();
         }
       } else {
         showChartError('temp-15min-chart', 'No data');
       }
 
-      // Humidity and wind stay on the 24h hourly window.
+      // Humidity and wind: show PREVIOUS 24h going backward from current time.
       if (times24.length) {
         const hum24 = next24(h24.relative_humidity_2m, times24);
+        console.log('[dashboard] humidity points', hum24.values.length, 'first', hum24.values[0], 'last', hum24.values[hum24.values.length-1]);
         safe('humidity-chart', { values: hum24.values, color: 'rgba(52,211,153,0.85)', label: '%', labels: hum24.labels });
         const wind24 = next24(h24.wind_speed_10m, times24);
+        console.log('[dashboard] wind points', wind24.values.length, 'first', wind24.values[0], 'last', wind24.values[wind24.values.length-1]);
         safe('wind-chart', { values: wind24.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind24.labels });
       } else {
         ['humidity-chart', 'wind-chart']
