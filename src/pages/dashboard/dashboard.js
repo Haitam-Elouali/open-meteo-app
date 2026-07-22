@@ -7,13 +7,45 @@
       { name: "Casablanca", lat: 33.5731, lon: -7.5898 },
       { name: "Rabat", lat: 34.0209, lon: -6.8416 },
       { name: "Fes", lat: 34.0331, lon: -5.0003 },
-      { name: "Marrakech", lat: 31.6295, lon: -7.9811 },
+      { name: "Marrakesh", lat: 31.6295, lon: -7.9811 },
       { name: "Tangier", lat: 35.7595, lon: -5.834 },
       { name: "Agadir", lat: 30.4278, lon: -9.5981 },
       { name: "Oujda", lat: 34.6814, lon: -1.9086 },
       { name: "Meknes", lat: 33.8935, lon: -5.5547 },
       { name: "Tetouan", lat: 35.5889, lon: -5.3626 },
-      { name: "Nador", lat: 34.9281, lon: -3.0426 }
+      { name: "Nador", lat: 34.9281, lon: -3.0426 },
+      { name: "Kenitra", lat: 34.261, lon: -6.5802 },
+      { name: "Safi", lat: 32.2994, lon: -9.2372 },
+      { name: "Mohammedia", lat: 33.6861, lon: -7.383 },
+      { name: "El Jadida", lat: 33.2568, lon: -8.5088 },
+      { name: "Beni Mellal", lat: 32.3373, lon: -6.3498 },
+      { name: "Laayoune", lat: 27.1418, lon: -13.188 },
+      { name: "Dakhla", lat: 23.6848, lon: -15.958 },
+      { name: "Essaouira", lat: 31.5125, lon: -9.77 },
+      { name: "Chefchaouen", lat: 35.1688, lon: -5.2636 },
+      { name: "Ouarzazate", lat: 30.9189, lon: -6.8934 },
+      { name: "Errachidia", lat: 31.9314, lon: -4.4266 },
+      { name: "Al Hoceima", lat: 35.2517, lon: -3.9372 },
+      { name: "Larache", lat: 35.1932, lon: -6.1557 },
+      { name: "Ksar El Kebir", lat: 35.0004, lon: -5.9038 },
+      { name: "Berkane", lat: 34.92, lon: -2.32 },
+      { name: "Oued Zem", lat: 32.8627, lon: -6.5736 },
+      { name: "Khouribga", lat: 32.8811, lon: -6.9063 },
+      { name: "Sidi Ifni", lat: 29.3798, lon: -10.173 },
+      { name: "Sidi Slimane", lat: 34.2648, lon: -5.926 },
+      { name: "Sidi Yahya", lat: 34.7991, lon: -2.6026 },
+      { name: "Sidi Kacem", lat: 34.2215, lon: -5.7078 },
+      { name: "Jerada", lat: 34.31, lon: -2.16 },
+      { name: "Taourirt", lat: 34.41, lon: -2.89 },
+      { name: "Goulmima", lat: 31.67, lon: -4.98 },
+      { name: "Tinejdad", lat: 31.55, lon: -4.85 },
+      { name: "Midelt", lat: 32.68, lon: -4.73 },
+      { name: "Azrou", lat: 33.43, lon: -5.22 },
+      { name: "Ifrane", lat: 33.53, lon: -5.11 },
+      { name: "Khemisset", lat: 33.82, lon: -6.67 },
+      { name: "Tiznit", lat: 29.70, lon: -9.73 },
+      { name: "Inezgane", lat: 30.36, lon: -9.53 },
+      { name: "Tafraout", lat: 29.72, lon: -9.20 }
     ],
     "France": [
       { name: "Paris", lat: 48.8566, lon: 2.3522 },
@@ -550,29 +582,49 @@
     });
   }
 
-  function next24(arr, times) {
+  function next24(arr, times, utcOffsetH = 0) {
     const out = [];
     const labels = [];
     if (!times || !times.length || !arr || !arr.length) return { values: out, labels };
-    const start = Math.max(0, times.length - 24);
-    for (let i = start; i < times.length; i++) {
-      out.push(arr[i]);
-      const t = String(times[i]).split('T')[1] || '';
+    const n = times.length;
+    const endIdx = n - 1;
+    const offsetPoints = Math.round(utcOffsetH);
+    let startIdx = endIdx - 23 - offsetPoints;
+    if (startIdx < 0) {
+      startIdx = 0;
+      const localNowHour = new Date().getHours();
+      const targetLocalHour = (localNowHour - 24 + 24) % 24;
+      for (let i = n - 1; i >= 0; i--) {
+        const t = String(times[i]).split('T')[1] || '';
+        if (Number(t.split(':')[0]) === targetLocalHour) { startIdx = i; break; }
+      }
+    }
+    const count = Math.min(24, endIdx - startIdx + 1);
+    for (let i = 0; i < count; i++) {
+      const idx = startIdx + i;
+      out.push(arr[idx]);
+      const t = String(times[idx]).split('T')[1] || '';
       const parts = t.split(':');
       labels.push(`${String(parts[0] || '00').padStart(2, '0')}:00`);
     }
+    console.log('[dashboard] next24', { utcOffsetH, startIdx, endIdx, count, labelsHead: labels.slice(0, 6), labelsTail: labels.slice(-3) });
     return { values: out, labels };
   }
 
-  function next15min(arr, times) {
+  function next15min(arr, times, utcOffsetH = 0) {
     const out = [];
     const labels = [];
     if (!times || !times.length || !arr || !arr.length) return { values: out, labels };
-    const maxPoints = 96;
-    const start = Math.max(0, times.length - maxPoints);
-    for (let i = start; i < times.length; i++) {
-      out.push(arr[i]);
-      const t = String(times[i]).split('T')[1] || '';
+    const n = times.length;
+    const endIdx = n - 1;
+    const offsetPoints = Math.round(utcOffsetH) * 4;
+    let startIdx = endIdx - 95 - offsetPoints;
+    if (startIdx < 0) startIdx = Math.max(0, n - 96);
+    const count = Math.min(96, endIdx - startIdx + 1);
+    for (let i = 0; i < count; i++) {
+      const idx = startIdx + i;
+      out.push(arr[idx]);
+      const t = String(times[idx]).split('T')[1] || '';
       const parts = t.split(':');
       labels.push(`${String(parts[0] || '00').padStart(2, '0')}:${String(parts[1] || '00').padStart(2, '0')}`);
     }
@@ -664,7 +716,9 @@
       const h15 = minutely?.data?.hourly || {};
       const times15 = h15.time || [];
       const times24 = h24.time || [];
-      console.log('[dashboard] hourly response keys', Object.keys(hourly?.data || {}), 'times24', times24.length, 'times15', times15.length);
+      const utcOffsetSec = Number(hourly?.data?.utc_offset_seconds) || 0;
+      const utcOffsetH = utcOffsetSec / 3600;
+      console.log('[dashboard] hourly response keys', Object.keys(hourly?.data || {}), 'times24', times24.length, 'times15', times15.length, 'utc_offset_sec', utcOffsetSec, 'utc_offset_h', utcOffsetH);
       if (hourly?.error) console.warn('[dashboard] hourly API error', hourly.error);
 
       ['cities-table', 'temp-15min-chart', 'humidity-chart', 'wind-chart']
@@ -700,14 +754,16 @@
             const lats = countryCities.map(c => c.lat).join(',');
             const lons = countryCities.map(c => c.lon).join(',');
             const names = countryCities.map(c => encodeURIComponent(c.name)).join(',');
-            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}&forecast_days=1`;
+            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}&forecast_days=2`;
             console.log('[dashboard] fetching batch weather', weatherUrl);
             const weatherR = await fetch(weatherUrl);
             console.log('[dashboard] batch weather status', weatherR.status);
             if (weatherR.ok) {
             const weatherData = await weatherR.json();
-            console.log('[dashboard] batch weather data keys', Object.keys(weatherData?.data || {}));
+            console.log('[dashboard] batch weather data keys', Object.keys(weatherData?.data || {}), 'dailyKeys', Object.keys(weatherData?.data?.daily || {}));
             const dailyMax = weatherData?.data?.daily?.temperature_2m_max || [];
+            const dailyTime = weatherData?.data?.daily?.time || [];
+            console.log('[dashboard] batch dailyTime', dailyTime, 'dailyMax', dailyMax);
             const currents = Object.keys(weatherData?.data || {})
               .filter((k) => !isNaN(Number(k)))
               .sort((a, b) => Number(a) - Number(b))
@@ -743,7 +799,7 @@
             const lats = fbCities.map(c => c.lat).join(',');
             const lons = fbCities.map(c => c.lon).join(',');
             const names = fbCities.map(c => encodeURIComponent(c.name)).join(',');
-            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}&forecast_days=1`;
+            const weatherUrl = `/api/weather?lat=${lats}&lon=${lons}&name=${names}&forecast_days=2`;
             const weatherR = await fetch(weatherUrl);
             if (weatherR.ok) {
             const weatherData = await weatherR.json();
@@ -782,7 +838,7 @@
       };
 
       if (times24.length) {
-        const temp24 = next24(h24.temperature_2m, times24);
+        const temp24 = next24(h24.temperature_2m, times24, utcOffsetH);
         const temp24cut = { values: temp24.values.slice(0, MAX_POINTS), labels: temp24.labels.slice(0, MAX_POINTS) };
         console.log('[dashboard] temp hourly points', temp24cut.values.length, 'first', temp24cut.values[0], 'last', temp24cut.values[temp24cut.values.length-1], 'labels', temp24cut.labels.slice(0,4), '...', temp24cut.labels.slice(-4));
         safe('temp-15min-chart', { values: temp24cut.values.map((v) => U.temp(v)), color: 'rgba(248,113,113,0.9)', label: '°C', labels: temp24cut.labels });
@@ -797,17 +853,17 @@
 
       // Humidity and wind: show PREVIOUS 24h going backward from current time.
       if (times24.length) {
-        const hum24 = next24(h24.relative_humidity_2m, times24);
+        const hum24 = next24(h24.relative_humidity_2m, times24, utcOffsetH);
         console.log('[dashboard] humidity points', hum24.values.length, 'first', hum24.values[0], 'last', hum24.values[hum24.values.length-1], 'labels', hum24.labels.slice(0,4), '...', hum24.labels.slice(-4));
         safe('humidity-chart', { values: hum24.values, color: 'rgba(52,211,153,0.85)', label: '%', labels: hum24.labels });
-        const wind24 = next24(h24.wind_speed_10m, times24);
+        const wind24 = next24(h24.wind_speed_10m, times24, utcOffsetH);
         console.log('[dashboard] wind points', wind24.values.length, 'first', wind24.values[0], 'last', wind24.values[wind24.values.length-1], 'labels', wind24.labels.slice(0,4), '...', wind24.labels.slice(-4));
         safe('wind-chart', { values: wind24.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind24.labels });
       } else if (times15.length) {
         console.log('[dashboard] hourly missing, using 15min fallback for humidity/wind');
-        const hum15 = next15min(h15.relative_humidity_2m, times15);
+        const hum15 = next15min(h15.relative_humidity_2m, times15, utcOffsetH);
         safe('humidity-chart', { values: hum15.values, color: 'rgba(52,211,153,0.85)', label: '%', labels: hum15.labels });
-        const wind15 = next15min(h15.wind_speed_10m, times15);
+        const wind15 = next15min(h15.wind_speed_10m, times15, utcOffsetH);
         safe('wind-chart', { values: wind15.values.map((v) => U.wind(v)), color: 'rgba(251,191,36,0.85)', label: U.windLabel(), labels: wind15.labels });
       } else {
         ['humidity-chart', 'wind-chart']

@@ -10,24 +10,16 @@ const CITIES = JSON.parse(
 );
 const { CAPITALS } = require(`${__dirname}../lib/capitals-data.js`);
 
-// Cities that were deliberately removed from the curated Morocco list.
-const REMOVED_MOROCCO = [
-  'Ait-Melloul', 'Ben-Guerir', 'Bouarfa', 'Nouaceur', 'Salé',
-  'Souk El Arbaa', 'Youssoufia', 'Bouznika', 'Benslimane',
-  'Tiflet', 'Taourirt', 'Oulad Teima',
-  'Akka', 'Assa', 'Mirleft', "M'Diq", 'Fnideq', 'Martil', 'Asilah',
-  'Jerada', 'Figuig', 'Boujdour', 'Smara', 'Tan-Tan', 'Guelmim'
-];
+// Cities that are NOT in CITIES_BY_COUNTRY and should be added if missing.
+// REMOVED_MOROCCO list removed because the user requested expanded city lists.
 
-test('specified + district Morocco cities are removed from the curated list', () => {
+test('Morocco list covers core curated cities', () => {
   const morocco = CITIES['Morocco'] || [];
-  for (const city of REMOVED_MOROCCO) {
-    assert.ok(!morocco.includes(city), `unexpected Morocco city still present: ${city}`);
+  const core = ['Rabat', 'Casablanca', 'Fes', 'Marrakesh', 'Agadir', 'Tangier', 'Oujda', 'Meknes'];
+  for (const city of core) {
+    assert.ok(morocco.includes(city), `expected core Morocco city missing: ${city}`);
   }
-  // Core real cities must remain.
-  for (const city of ['Rabat', 'Casablanca', 'Fes', 'Marrakesh', 'Agadir', 'Tangier']) {
-    assert.ok(morocco.includes(city), `expected real Morocco city missing: ${city}`);
-  }
+  assert.ok(morocco.length >= 34, `Morocco should have at least 34 cities, got ${morocco.length}`);
 });
 
 test('capitals dataset covers every curated country', () => {
