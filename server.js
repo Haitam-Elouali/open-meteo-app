@@ -640,3 +640,5 @@ app.post('/api/favorites', express.json(), (req, res) => {
 app.listen(PORT, () => {
   console.log(`Open-Arsad server listening on http://localhost:${PORT}`);
 });
+
+module.exports = app;
