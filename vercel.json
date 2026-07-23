@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "framework": null,
-  "outputDirectory": "src",
   "buildCommand": "echo 'static site + api functions'",
   "rewrites": [
     { "source": "/dashboard", "destination": "/pages/dashboard/index.html" },
