@@ -2,13 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "framework": null,
-  "outputDirectory": "src",
-  "buildCommand": "echo 'static site + api functions'",
-  "rewrites": [
-    { "source": "/dashboard", "destination": "/pages/dashboard/index.html" },
-    { "source": "/hourly", "destination": "/pages/dashboard/index.html" },
-    { "source": "/details", "destination": "/pages/details/index.html" },
-    { "source": "/settings", "destination": "/pages/settings/index.html" },
-    { "source": "/(.*)", "destination": "/pages/home/index.html" }
-  ]
+  "outputDirectory": "src"
 }
