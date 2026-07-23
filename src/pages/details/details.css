@@ -276,12 +276,11 @@
     overflow-x: auto;
 }
 
-/* Size the scroll view to the available width so the card never forces the
-   page wider than the viewport. Inner .forecast-row keeps its natural width
-   and scrolls horizontally. */
+/* 7-day view: shrink-to-fit around the content.
+   14/31-day views: cap at viewport width and scroll horizontally. */
 .forecast-card.forecast-scroll-view {
-    flex: 1 1 0%;
-    width: 100%;
+    flex: 0 1 auto;
+    width: fit-content;
     max-width: 100%;
     box-sizing: border-box;
 }
@@ -289,19 +288,17 @@
 .forecast-scroll {
     display: flex;
     align-items: center;
-    justify-content: stretch;
+    justify-content: center;
     gap: 8px;
     position: relative;
     margin: 0 auto;
     width: 100%;
     max-width: 100%;
-    overflow: hidden;
 }
 
 .forecast-scroll-view {
     overflow-x: auto;
     scroll-behavior: smooth;
-    flex: 1 1 0%;
     min-width: 0;
 }
 
