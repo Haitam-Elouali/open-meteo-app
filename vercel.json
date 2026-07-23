@@ -1,9 +1,5 @@
 {
   "version": 2,
   "framework": "express",
-  "buildCommand": "echo 'skip'",
-  "outputDirectory": "src",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
-  ]
+  "buildCommand": "echo 'skip'"
 }
