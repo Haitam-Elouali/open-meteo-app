@@ -2,51 +2,51 @@ const { cachedFetchJson, isBlockedCountry } = require('../lib/helpers');
 const { CITIES_BY_COUNTRY } = require('../lib/cities-data');
 
 const MOROCCO_CITY_COORDS = {
-  "Zag": { "lat": 28.0221, "lon": -9.294 },
-  "Beni-Mellal": { "lat": 32.3405, "lon": -6.361 },
-  "Tata": { "lat": 29.7509, "lon": -7.9756 },
-  "Elbrouj": { "lat": 32.5, "lon": -7.19 },
-  "Smara": { "lat": 26.7384, "lon": -11.6719 },
-  "Kasba-Tadla": { "lat": 32.5977, "lon": -6.2684 },
-  "Oujda-Ville": { "lat": 34.6814, "lon": -1.9086 },
-  "Taza Hammou Meftah": { "lat": 34.21, "lon": -4.01 },
-  "Marrakech": { "lat": 31.6346, "lon": -8.0779 },
-  "Taroudant": { "lat": 30.4703, "lon": -8.877 },
-  "Errachidia": { "lat": 31.9329, "lon": -4.4246 },
-  "Ouarzazate": { "lat": 30.9189, "lon": -6.9094 },
-  "Bouarfa": { "lat": 32.5309, "lon": -1.965 },
-  "Jerrada": { "lat": 34.3062, "lon": -2.1794 },
-  "Chefchaouen": { "lat": 35.1688, "lon": -5.2636 },
-  "Tetuan / Sania Ramel": { "lat": 35.5889, "lon": -5.3626 },
-  "Benguerir": { "lat": 32.1245, "lon": -7.8781 },
-  "Nador-Aroui": { "lat": 34.9281, "lon": -3.0426 },
-  "Khouribga": { "lat": 32.8811, "lon": -6.9063 },
-  "Guelmin": { "lat": 28.9884, "lon": -10.0527 },
-  "Tiznit": { "lat": 29.6934, "lon": -9.7322 },
-  "Fes-Sais": { "lat": 34.0331, "lon": -5.0003 },
-  "Sidi Slimane": { "lat": 34.2617, "lon": -5.9198 },
-  "Meknes": { "lat": 33.8935, "lon": -5.5547 },
-  "Ifrane": { "lat": 33.5228, "lon": -5.111 },
-  "Midelt": { "lat": 32.6855, "lon": -4.7502 },
-  "Agadir Al Massira": { "lat": 30.325, "lon": -9.4131 },
-  "Laayoune": { "lat": 27.1418, "lon": -13.188 },
-  "Al Hoceima": { "lat": 35.2517, "lon": -3.9372 },
-  "Safi": { "lat": 32.2994, "lon": -9.2372 },
-  "Settat": { "lat": 33.004, "lon": -7.617 },
-  "Nouasseur": { "lat": 33.367, "lon": -7.5733 },
-  "Agadir": { "lat": 30.4278, "lon": -9.5981 },
-  "Saidia": { "lat": 35.085, "lon": -2.2392 },
-  "Kenitra": { "lat": 34.261, "lon": -6.5802 },
-  "Tan-Tan": { "lat": 28.0833, "lon": -11.0833 },
-  "Larache": { "lat": 35.1932, "lon": -6.1557 },
-  "Tanger Aerodrome": { "lat": 35.7595, "lon": -5.834 },
-  "El Jadida": { "lat": 33.2568, "lon": -8.5088 },
-  "Rabat-Sale": { "lat": 34.0209, "lon": -6.8416 },
-  "Dakhla": { "lat": 23.6848, "lon": -15.958 },
-  "Mohammedia": { "lat": 33.6861, "lon": -7.383 },
-  "Casablanca": { "lat": 33.5731, "lon": -7.5898 },
-  "Sidi Ifni": { "lat": 29.377, "lon": -10.171 },
-  "Essaouira": { "lat": 31.5125, "lon": -9.77 }
+  "Zag": { "latitude": 28.0221, "longitude": -9.294 },
+  "Beni-Mellal": { "latitude": 32.3405, "longitude": -6.361 },
+  "Tata": { "latitude": 29.7509, "longitude": -7.9756 },
+  "Elbrouj": { "latitude": 32.5, "longitude": -7.19 },
+  "Smara": { "latitude": 26.7384, "longitude": -11.6719 },
+  "Kasba-Tadla": { "latitude": 32.5977, "longitude": -6.2684 },
+  "Oujda-Ville": { "latitude": 34.6814, "longitude": -1.9086 },
+  "Taza Hammou Meftah": { "latitude": 34.21, "longitude": -4.01 },
+  "Marrakech": { "latitude": 31.6346, "longitude": -8.0779 },
+  "Taroudant": { "latitude": 30.4703, "longitude": -8.877 },
+  "Errachidia": { "latitude": 31.9329, "longitude": -4.4246 },
+  "Ouarzazate": { "latitude": 30.9189, "longitude": -6.9094 },
+  "Bouarfa": { "latitude": 32.5309, "longitude": -1.965 },
+  "Jerrada": { "latitude": 34.3062, "longitude": -2.1794 },
+  "Chefchaouen": { "latitude": 35.1688, "longitude": -5.2636 },
+  "Tetuan / Sania Ramel": { "latitude": 35.5889, "longitude": -5.3626 },
+  "Benguerir": { "latitude": 32.1245, "longitude": -7.8781 },
+  "Nador-Aroui": { "latitude": 34.9281, "longitude": -3.0426 },
+  "Khouribga": { "latitude": 32.8811, "longitude": -6.9063 },
+  "Guelmin": { "latitude": 28.9884, "longitude": -10.0527 },
+  "Tiznit": { "latitude": 29.6934, "longitude": -9.7322 },
+  "Fes-Sais": { "latitude": 34.0331, "longitude": -5.0003 },
+  "Sidi Slimane": { "latitude": 34.2617, "longitude": -5.9198 },
+  "Meknes": { "latitude": 33.8935, "longitude": -5.5547 },
+  "Ifrane": { "latitude": 33.5228, "longitude": -5.111 },
+  "Midelt": { "latitude": 32.6855, "longitude": -4.7502 },
+  "Agadir Al Massira": { "latitude": 30.325, "longitude": -9.4131 },
+  "Laayoune": { "latitude": 27.1418, "longitude": -13.188 },
+  "Al Hoceima": { "latitude": 35.2517, "longitude": -3.9372 },
+  "Safi": { "latitude": 32.2994, "longitude": -9.2372 },
+  "Settat": { "latitude": 33.004, "longitude": -7.617 },
+  "Nouasseur": { "latitude": 33.367, "longitude": -7.5733 },
+  "Agadir": { "latitude": 30.4278, "longitude": -9.5981 },
+  "Saidia": { "latitude": 35.085, "longitude": -2.2392 },
+  "Kenitra": { "latitude": 34.261, "longitude": -6.5802 },
+  "Tan-Tan": { "latitude": 28.0833, "longitude": -11.0833 },
+  "Larache": { "latitude": 35.1932, "longitude": -6.1557 },
+  "Tanger Aerodrome": { "latitude": 35.7595, "longitude": -5.834 },
+  "El Jadida": { "latitude": 33.2568, "longitude": -8.5088 },
+  "Rabat-Sale": { "latitude": 34.0209, "longitude": -6.8416 },
+  "Dakhla": { "latitude": 23.6848, "longitude": -15.958 },
+  "Mohammedia": { "latitude": 33.6861, "longitude": -7.383 },
+  "Casablanca": { "latitude": 33.5731, "longitude": -7.5898 },
+  "Sidi Ifni": { "latitude": 29.377, "longitude": -10.171 },
+  "Essaouira": { "latitude": 31.5125, "longitude": -9.77 }
 };
 
 module.exports = async (req, res) => {
@@ -82,10 +82,8 @@ module.exports = async (req, res) => {
   const results = await mapWithConcurrency(cities, 6, async (city) => {
     try {
       let loc = null;
-      let source = 'geocode';
       if (country === 'Morocco' && MOROCCO_CITY_COORDS[city]) {
         loc = { ...MOROCCO_CITY_COORDS[city], country: 'Morocco' };
-        source = 'static';
       } else {
         const geoUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
         geoUrl.searchParams.set('count', '1');
@@ -102,7 +100,7 @@ module.exports = async (req, res) => {
       }
       console.log('[cities-weather] geocode', city, '->', loc ? `${loc.latitude},${loc.longitude},${loc.country}` : 'NOT FOUND');
       if (!loc || isBlockedCountry(loc.country)) {
-        return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null, source };
+        return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null };
       }
 
       const weatherUrl = new URL('https://api.open-meteo.com/v1/forecast');
@@ -122,11 +120,10 @@ module.exports = async (req, res) => {
         lat: loc.latitude,
         lon: loc.longitude,
         maxTemp: Number.isFinite(maxTemp) ? Math.round(maxTemp) : null,
-        source,
       };
     } catch (e) {
       console.error('[cities-weather] error for', city, e);
-      return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null, source: 'error' };
+      return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null };
     }
   });
 
