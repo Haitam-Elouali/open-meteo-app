@@ -197,11 +197,13 @@
 
 /* ---------- Forecast (single card) ---------- */
 .forecast-block {
-    display: inline-flex;
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
     margin: 8px auto 16px;
+    width: 100%;
+    max-width: 100%;
 }
 
 .forecast-toolbar {
@@ -281,21 +283,25 @@
     flex: 1 1 0%;
     width: 100%;
     max-width: 100%;
+    box-sizing: border-box;
 }
 
 .forecast-scroll {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: stretch;
     gap: 8px;
     position: relative;
     margin: 0 auto;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .forecast-scroll-view {
     overflow-x: auto;
     scroll-behavior: smooth;
-    flex: 1;
+    flex: 1 1 0%;
     min-width: 0;
 }
 
