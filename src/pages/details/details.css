@@ -274,12 +274,12 @@
     overflow-x: auto;
 }
 
-/* Size the card to its content (the row of day columns) instead of stretching
-   full-width. It grows with the number of days but never exceeds the available
-   width (it scrolls horizontally past that). */
+/* Size the scroll view to the available width so the card never forces the
+   page wider than the viewport. Inner .forecast-row keeps its natural width
+   and scrolls horizontally. */
 .forecast-card.forecast-scroll-view {
-    flex: 0 1 auto;
-    width: fit-content;
+    flex: 1 1 0%;
+    width: 100%;
     max-width: 100%;
 }
 
