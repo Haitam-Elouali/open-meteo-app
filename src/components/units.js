@@ -18,14 +18,14 @@ window.Units = {
   wind(kmh) {
     kmh = Number(kmh);
     if (!Number.isFinite(kmh)) return kmh;
-    if (this.windUnit() === 'kn') return kmh / 1.852;       // km/h -> knots
+    if (this.windUnit() === 'kt' || this.windUnit() === 'kn') return kmh / 1.852;       // km/h -> kt
     if (this.windUnit() === 'ms') return kmh / 3.6;        // km/h -> m/s
     return kmh;                                            // km/h
   },
   tempLabel() { return this.tempUnit() === 'f' ? '°F' : '°C'; },
   windLabel() {
     const u = this.windUnit();
-    if (u === 'kn') return 'kn';
+    if (u === 'kt' || u === 'kn') return 'kt';
     if (u === 'ms') return 'm/s';
     return 'km/h';
   }

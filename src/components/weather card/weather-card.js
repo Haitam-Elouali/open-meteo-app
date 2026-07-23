@@ -540,7 +540,7 @@ function wireUI() {
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     const durEl = $('.sun-duration');
-    if (durEl) durEl.textContent = `${hours}h ${mins}m`;
+    if (durEl) durEl.textContent = `${hours}h ${mins}min`;
   }
 
   // chance of rain tomorrow
