@@ -82,8 +82,10 @@ module.exports = async (req, res) => {
   const results = await mapWithConcurrency(cities, 6, async (city) => {
     try {
       let loc = null;
+      let source = 'geocode';
       if (country === 'Morocco' && MOROCCO_CITY_COORDS[city]) {
         loc = { ...MOROCCO_CITY_COORDS[city], country: 'Morocco' };
+        source = 'static';
       } else {
         const geoUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
         geoUrl.searchParams.set('count', '1');
@@ -100,7 +102,7 @@ module.exports = async (req, res) => {
       }
       console.log('[cities-weather] geocode', city, '->', loc ? `${loc.latitude},${loc.longitude},${loc.country}` : 'NOT FOUND');
       if (!loc || isBlockedCountry(loc.country)) {
-        return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null };
+        return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null, source };
       }
 
       const weatherUrl = new URL('https://api.open-meteo.com/v1/forecast');
@@ -120,10 +122,11 @@ module.exports = async (req, res) => {
         lat: loc.latitude,
         lon: loc.longitude,
         maxTemp: Number.isFinite(maxTemp) ? Math.round(maxTemp) : null,
+        source,
       };
     } catch (e) {
       console.error('[cities-weather] error for', city, e);
-      return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null };
+      return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null, source: 'error' };
     }
   });
 
