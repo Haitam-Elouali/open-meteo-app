@@ -2894,7 +2894,6 @@
     "Zag",
     "Beni-Mellal",
     "Tata",
-    "Elbrouj",
     "Smara",
     "Kasba-Tadla",
     "Oujda-Ville",

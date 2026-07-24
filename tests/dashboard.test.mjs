@@ -598,6 +598,6 @@ test('cities table headers are translated by i18n after render', async () => {
   const headers = table.querySelectorAll('thead th');
   assert.ok(headers.length >= 2, 'table should have headers');
   assert.equal(headers[0].textContent, 'Ville', 'city header should be translated to French');
-  assert.equal(headers[1].textContent, 'Max', 'max temp header should be translated to French');
+  assert.equal(headers[1].textContent, 'Max. d\'hier', 'max temp header should be translated to French');
 });
 

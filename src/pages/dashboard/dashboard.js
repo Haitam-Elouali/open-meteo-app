@@ -2635,7 +2635,6 @@
       { name: "Zag", lat: 28.0221, lon: -9.294 },
       { name: "Beni-Mellal", lat: 32.3405, lon: -6.361 },
       { name: "Tata", lat: 29.7509, lon: -7.9756 },
-      { name: "Elbrouj", lat: 32.5, lon: -7.19 },
       { name: "Smara", lat: 26.7384, lon: -11.6719 },
       { name: "Kasba-Tadla", lat: 32.5977, lon: -6.2684 },
       { name: "Oujda-Ville", lat: 34.6814, lon: -1.9086 },
@@ -5589,7 +5588,7 @@
     const table = document.createElement('table');
     table.className = 'cities-table';
     const thead = document.createElement('thead');
-    thead.innerHTML = `<tr><th data-i18n="dashboard.citiesTableCity">City</th><th data-i18n="dashboard.citiesTableMaxTemp">Max Temp</th></tr>`;
+    thead.innerHTML = `<tr><th data-i18n="dashboard.citiesTableCity">City</th><th data-i18n="dashboard.citiesTableMaxTemp">Yesterday's Maximum</th></tr>`;
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     cities.forEach((c) => {

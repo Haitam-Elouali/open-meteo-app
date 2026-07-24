@@ -420,7 +420,6 @@ const MOROCCO_CITY_COORDS = {
   "Zag": { "latitude": 28.0221, "longitude": -9.294 },
   "Beni-Mellal": { "latitude": 32.3405, "longitude": -6.361 },
   "Tata": { "latitude": 29.7509, "longitude": -7.9756 },
-  "Elbrouj": { "latitude": 32.5, "longitude": -7.19 },
   "Smara": { "latitude": 26.7384, "longitude": -11.6719 },
   "Kasba-Tadla": { "latitude": 32.5977, "longitude": -6.2684 },
   "Oujda-Ville": { "latitude": 34.6814, "longitude": -1.9086 },
