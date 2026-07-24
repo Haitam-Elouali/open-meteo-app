@@ -289,3 +289,15 @@ input, select, textarea {
     color: inherit;
     font-family: inherit;
 }
+
+.home-footer {
+    text-align: center;
+    padding: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+}
+
+.home-footer a {
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: underline;
+}

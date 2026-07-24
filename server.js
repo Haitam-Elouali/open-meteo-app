@@ -637,7 +637,11 @@ app.post('/api/favorites', express.json(), (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Open-Arsad server listening on http://localhost:${PORT} and LAN http://<YOUR-IP>:${PORT}`);
+  const ip = process.env.OPEN_METEO_LAN_IP || '192.168.11.100';
+  const domain = process.env.OPEN_METEO_LOCAL_DOMAIN || 'open-meteo.local';
+  console.log(`Open-Arsad server listening on http://localhost:${PORT}`);
+  console.log(`LAN URL        : http://${ip}:${PORT}`);
+  console.log(`Local domain   : http://${domain}:${PORT}`);
 });
 
 module.exports = app;
