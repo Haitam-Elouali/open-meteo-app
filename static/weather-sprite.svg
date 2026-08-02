@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="day" viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="13" fill="#ffd93b"/>
+    <g stroke="#ffd93b" stroke-width="3" stroke-linecap="round">
+      <line x1="32" y1="6" x2="32" y2="14"/>
+      <line x1="32" y1="50" x2="32" y2="58"/>
+      <line x1="6" y1="32" x2="14" y2="32"/>
+      <line x1="50" y1="32" x2="58" y2="32"/>
+      <line x1="13" y1="13" x2="19" y2="19"/>
+      <line x1="45" y1="45" x2="51" y2="51"/>
+      <line x1="51" y1="13" x2="45" y2="19"/>
+      <line x1="19" y1="45" x2="13" y2="51"/>
+    </g>
+  </symbol>
+  <symbol id="night" viewBox="0 0 64 64">
+    <path d="M40 38a16 16 0 1 1-14-26 13 13 0 0 0 14 26z" fill="#cdd6f4"/>
+  </symbol>
+  <symbol id="cloudy" viewBox="0 0 64 64">
+    <circle cx="24" cy="24" r="9" fill="#ffd93b"/>
+    <path d="M20 48a12 12 0 0 1 1-24 16 16 0 0 1 30 5 11 11 0 0 1-2 19z" fill="#e2e8f0"/>
+  </symbol>
+  <symbol id="cloudy-day-1" viewBox="0 0 64 64">
+    <circle cx="22" cy="22" r="8" fill="#ffd93b"/>
+    <path d="M22 46a11 11 0 0 1 1-22 15 15 0 0 1 28 5 10 10 0 0 1-2 17z" fill="#e2e8f0"/>
+  </symbol>
+  <symbol id="rainy-4" viewBox="0 0 64 64">
+    <path d="M20 40a12 12 0 0 1 1-24 16 16 0 0 1 30 5 11 11 0 0 1-2 19z" fill="#e2e8f0"/>
+    <g stroke="#60a5fa" stroke-width="3" stroke-linecap="round">
+      <line x1="24" y1="46" x2="20" y2="56"/>
+      <line x1="34" y1="46" x2="30" y2="56"/>
+      <line x1="44" y1="46" x2="40" y2="56"/>
+    </g>
+  </symbol>
+  <symbol id="snowy-3" viewBox="0 0 64 64">
+    <path d="M20 40a12 12 0 0 1 1-24 16 16 0 0 1 30 5 11 11 0 0 1-2 19z" fill="#e2e8f0"/>
+    <g fill="#bfdbfe">
+      <circle cx="22" cy="52" r="2.5"/>
+      <circle cx="32" cy="56" r="2.5"/>
+      <circle cx="42" cy="52" r="2.5"/>
+    </g>
+  </symbol>
+  <symbol id="thunder" viewBox="0 0 64 64">
+    <path d="M20 38a12 12 0 0 1 1-24 16 16 0 0 1 30 5 11 11 0 0 1-2 19z" fill="#e2e8f0"/>
+    <path d="M34 40l-10 14h8l-4 10 14-16h-8l5-8z" fill="#facc15"/>
+  </symbol>
+</svg>
