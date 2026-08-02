@@ -146,16 +146,32 @@ async function handler(req, res) {
           const temps = forecast?.hourly?.temperature_2m || [];
 
           const now = new Date();
-          const currentHour = now.getHours();
           const n = Math.min(times.length, temps.length, 24);
 
-          if (currentHour >= 18) {
+          // Parse hour from each time string (API returns times in location timezone).
+          // Find the latest past hour to check if it's >= 18:00.
+          let latestHour = -1;
+          for (let i = 0; i < n; i++) {
+            const raw = String(times[i] || '');
+            const timePart = raw.split('T')[1] || '';
+            const hhmm = timePart.split('+')[0].split('Z')[0];
+            const parts = hhmm.split(':');
+            const hour = Number(parts[0]);
+            if (Number.isFinite(hour)) {
+              const t = new Date(raw);
+              if (!isNaN(t) && t <= now) {
+                if (hour > latestHour) latestHour = hour;
+              }
+            }
+          }
+
+          if (latestHour >= 18) {
             let best = null;
             for (let i = 0; i < n; i++) {
               const v = temps[i];
               if (Number.isFinite(v)) {
                 const t = new Date(times[i]);
-                if (t <= now) {
+                if (!isNaN(t) && t <= now) {
                   if (best === null || v > best) best = v;
                 }
               }

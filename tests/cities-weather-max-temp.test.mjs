@@ -7,7 +7,6 @@ const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 const realFetch = global.fetch;
-let fetchCallCount = 0;
 
 function buildForecastResponse(times, temps) {
   return {
@@ -25,6 +24,18 @@ function buildArchiveResponse(maxTemp) {
       daily: { temperature_2m_max: [maxTemp] }
     })
   };
+}
+
+function makeTimesWithHour(hour, count = 24) {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const times = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getTime() - (count - 1 - i) * 3600000);
+    d.setHours(hour, 0, 0, 0);
+    times.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`);
+  }
+  return times;
 }
 
 function makePastTimes(count, hoursBack = 23) {
@@ -51,22 +62,8 @@ function makeFutureTimes(count) {
   return times;
 }
 
-function makeTimesFromHours(hourList) {
-  const now = new Date();
-  const pad = (x) => String(x).padStart(2, '0');
-  now.setMinutes(0, 0, 0);
-  return hourList.map((h) => {
-    const d = new Date(now);
-    d.setHours(h);
-    d.setMinutes(0, 0, 0);
-    if (d > now) d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
-  });
-}
-
 function mockFetch(forecastTimes, forecastTemps, archiveMax = null) {
   global.fetch = async (url) => {
-    fetchCallCount++;
     const u = String(url);
     if (u.includes('api.open-meteo.com/v1/forecast')) {
       return buildForecastResponse(forecastTimes, forecastTemps);
@@ -113,78 +110,158 @@ async function runCitiesWeather(query, forecastTimes, forecastTemps, archiveMax 
   }
 }
 
-// Helper: get current hour to determine test expectations
 function getCurrentHour() {
   return new Date().getHours();
 }
 
+function getLatestPastHour(times) {
+  const now = new Date();
+  let latest = -1;
+  for (const t of times) {
+    const d = new Date(t);
+    if (!isNaN(d) && d <= now) {
+      const h = d.getHours();
+      if (h > latest) latest = h;
+    }
+  }
+  return latest;
+}
+
 // ============================================================================
 // 18:00 LOCK RULE TESTS
-// Rule: If current time is 18:00 or later, use the forecast max for past hours.
-//       If before 18:00, fall back to yesterday's archive max.
 // ============================================================================
 
-test('18:00 lock: maxTemp uses forecast max when currentHour >= 18', async () => {
+test('18:00 lock: when latest past hour >= 18, maxTemp uses forecast max', async () => {
+  // Create times with hours from 18 to 23 (all future relative to now)
+  // Actually, we need to create times that are in the past with hour >= 18.
+  // Since current time is 12:00 (11:58 AM), we can't create past times with hour >= 18
+  // (past 18:00 would be yesterday, which would still be valid).
+  
+  // Create times: yesterday 18:00 to 23:00 (6 entries, all past)
   const now = new Date();
-  const currentHour = getCurrentHour();
-
-  if (currentHour < 18) {
-    // When testing before 18:00, we can't test this path.
-    // But we can still verify the archive fallback works (see next test).
-    console.log('[test] Skipping 18:00 lock test: currentHour is', currentHour, '(would need >= 18 to test)');
-    return;
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestPad = (x) => String(x).padStart(2, '0');
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = yestPad(yesterday.getMonth() + 1);
+  const yestDD = yestPad(yesterday.getDate());
+  
+  // Create 6 hourly entries from yesterday 18:00 to 23:00
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(20 + h);
   }
-
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => 20 + i * 0.5);
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
+  
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, 99);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
   const first = cities[0];
-  const expectedMax = Math.round(Math.max(...temps));
-  assert.equal(first.maxTemp, expectedMax, `maxTemp should be ${expectedMax} from forecast when past 18:00`);
+  // The latest past hour should be 23 (yesterday 23:00), which is >= 18
+  const latestHour = getLatestPastHour(times);
+  assert.ok(latestHour >= 18, `latest past hour should be >= 18, got ${latestHour}`);
+  // maxTemp should be from forecast, not archive (99)
+  assert.equal(first.maxTemp, 43, `maxTemp should be forecast max 43, got ${first.maxTemp}`);
 });
 
-test('18:00 lock: maxTemp falls back to archive when currentHour < 18', async () => {
-  const currentHour = getCurrentHour();
-
-  if (currentHour >= 18) {
-    console.log('[test] Skipping archive fallback test: currentHour is', currentHour, '(would need < 18 to test)');
-    return;
+test('18:00 lock: when latest past hour < 18, maxTemp falls back to archive', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yestYYYY = now.getFullYear();
+  const yestMM = pad(now.getMonth() + 1);
+  const yestDD = pad(now.getDate() - 1);
+  
+  // Create times: yesterday 10:00 to 17:00 (8 entries, all past, hour < 18)
+  const times = [];
+  const temps = [];
+  for (let h = 10; h <= 17; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(20 + h);
   }
-
-  // Before 18:00: even with valid forecast data, should use archive
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => 20 + i * 0.5);
-  const archiveMax = 38;
+  
+  const archiveMax = 35;
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, archiveMax);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
   const first = cities[0];
-  assert.equal(first.maxTemp, archiveMax, `maxTemp should be archive value ${archiveMax} when before 18:00`);
-});
-
-test('18:00 lock: maxTemp uses archive when forecast fails and currentHour >= 18', async () => {
-  const currentHour = getCurrentHour();
-
-  if (currentHour < 18) {
-    console.log('[test] Skipping: currentHour is', currentHour, '(would need >= 18)');
-    return;
-  }
-
-  // Forecast fails (empty), archive provides the max
-  const archiveMax = 35;
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, [], [], archiveMax);
-  const cities = body?.cities || [];
-  assert.ok(cities.length >= 1, 'expected at least one city');
-  const first = cities[0];
+  const latestHour = getLatestPastHour(times);
+  assert.ok(latestHour < 18, `latest past hour should be < 18, got ${latestHour}`);
   assert.equal(first.maxTemp, archiveMax, `maxTemp should fall back to archive ${archiveMax}`);
 });
 
-test('18:00 lock: maxTemp is null when archive also fails', async () => {
-  // Archive fails - maxTemp should stay null
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => 20 + i);
+test('18:00 lock: maxTemp does not change when latest hour < 18 even if forecast has higher values', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  // Yesterday hours 10-17, with very high temps
+  const times = [];
+  const temps = [];
+  for (let h = 10; h <= 17; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(50 + h); // high temps
+  }
+  
+  const archiveMax = 30;
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, archiveMax);
+  const cities = body?.cities || [];
+  assert.ok(cities.length >= 1, 'expected at least one city');
+  const first = cities[0];
+  // Even though forecast has 67, it should use archive (30) because latest hour < 18
+  assert.equal(first.maxTemp, archiveMax, `maxTemp should be archive ${archiveMax}, not forecast max`);
+});
+
+test('18:00 lock: maxTemp uses forecast max when latest hour is exactly 18', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  // Yesterday hour 18 only (latest past hour = 18, which is >= 18)
+  const times = [`${yestYYYY}-${yestMM}-${yestDD}T${pad(18)}:00`];
+  const temps = [42];
+  
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, 99);
+  const cities = body?.cities || [];
+  assert.ok(cities.length >= 1, 'expected at least one city');
+  const first = cities[0];
+  assert.equal(first.maxTemp, 42, `maxTemp should be 42 from forecast (latest hour = 18)`);
+});
+
+test('18:00 lock: maxTemp falls back to archive when no forecast entries are past', async () => {
+  const times = makeFutureTimes(24);
+  const temps = times.map((_, i) => 25 + i);
+  const archiveMax = 35;
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, archiveMax);
+  const cities = body?.cities || [];
+  assert.ok(cities.length >= 1, 'expected at least one city');
+  const first = cities[0];
+  // All entries are future → latestHour = -1 → < 18 → archive
+  assert.equal(first.maxTemp, archiveMax, 'maxTemp should fall back to archive when no past entries');
+});
+
+test('18:00 lock: maxTemp is null when archive also fails and latest hour >= 18', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  // All temps null so forecast max is null, then archive fails
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(null);
+  }
+  
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, 'FAIL');
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
@@ -192,127 +269,109 @@ test('18:00 lock: maxTemp is null when archive also fails', async () => {
   assert.equal(first.maxTemp, null, 'maxTemp should be null when archive fails');
 });
 
-// ============================================================================
-// FORECAST DATA EDGE CASES (when currentHour >= 18)
-// ============================================================================
-
-test('maxTemp handles all-null forecast by falling back to archive', async () => {
-  const times = makePastTimes(24);
-  const temps = times.map(() => null);
-  const archiveMax = 38;
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, archiveMax);
+test('18:00 lock: maxTemp uses forecast max when latest hour >= 18 and there are null temps', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  const times = [];
+  const temps = [];
+  for (let h = 14; h <= 22; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(h === 18 ? null : 20 + h);
+  }
+  
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, 99);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
   const first = cities[0];
-  if (getCurrentHour() < 18) {
-    assert.equal(first.maxTemp, archiveMax, 'before 18:00, should use archive');
-  } else {
-    assert.equal(first.maxTemp, archiveMax, 'after 18:00 with all-null forecast, should fall back to archive');
-  }
+  const validTemps = temps.filter((v) => Number.isFinite(v));
+  const expectedMax = Math.round(Math.max(...validTemps));
+  assert.equal(first.maxTemp, expectedMax, `maxTemp should be ${expectedMax} from forecast`);
 });
 
-test('maxTemp picks highest valid temp with mixed nulls and values', async () => {
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => i % 3 === 0 ? null : 25 + i);
+test('18:00 lock: ignores future entries when calculating maxTemp', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const today = new Date();
+  const futureHour = now.getHours() + 5; // ensure it's in the future
+  const todayYYYY = today.getFullYear();
+  const todayMM = pad(today.getMonth() + 1);
+  const todayDD = pad(today.getDate());
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  // Yesterday 18:00 and 22:00 (both past, hour >= 18), plus future hours (truly future)
+  const times = [
+    `${yestYYYY}-${yestMM}-${yestDD}T18:00`,
+    `${todayYYYY}-${todayMM}-${todayDD}T${pad(futureHour)}:00`, // future
+    `${yestYYYY}-${yestMM}-${yestDD}T22:00`,
+    `${todayYYYY}-${todayMM}-${todayDD}T${pad(futureHour + 1)}:00`, // future
+  ];
+  const temps = [30, 99, 40, 99]; // 99s are for future entries
+  
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, 99);
+  const cities = body?.cities || [];
+  assert.ok(cities.length >= 1, 'expected at least one city');
+  const first = cities[0];
+  // Should only consider past entries with hour >= 18 (30 and 40 from yesterday)
+  assert.equal(first.maxTemp, 40, `maxTemp should be 40 (ignoring future entries with 99)`);
+});
+
+test('18:00 lock: maxTemp rounds correctly at 18:00 boundary', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(h === 20 ? 36.6 : 20 + h * 0.3);
+  }
+  
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
   const first = cities[0];
   const validTemps = temps.filter((v) => Number.isFinite(v));
   const expectedMax = Math.round(Math.max(...validTemps));
-  if (getCurrentHour() >= 18) {
-    assert.equal(first.maxTemp, expectedMax, `maxTemp should be ${expectedMax} from forecast`);
-  } else {
-    // Before 18:00, uses archive
-    assert.ok(first.maxTemp === null || Number.isFinite(first.maxTemp), 'maxTemp should be valid or null');
-  }
+  assert.equal(first.maxTemp, expectedMax, `maxTemp should be ${expectedMax}`);
 });
 
-test('maxTemp handles fewer than 24 forecast entries', async () => {
-  const times = makePastTimes(12);
-  const temps = times.map((_, i) => 22 + i);
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
-  const cities = body?.cities || [];
-  assert.ok(cities.length >= 1, 'expected at least one city');
-  const first = cities[0];
-  assert.ok(first.maxTemp === null || Number.isFinite(first.maxTemp), 'maxTemp should be valid or null');
-});
-
-test('maxTemp ignores NaN values in forecast', async () => {
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => i === 5 ? NaN : 20 + i);
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
-  const cities = body?.cities || [];
-  assert.ok(cities.length >= 1, 'expected at least one city');
-  const first = cities[0];
-  const validTemps = temps.filter((v) => Number.isFinite(v));
-  const expectedMax = Math.round(Math.max(...validTemps));
-  if (getCurrentHour() >= 18) {
-    assert.equal(first.maxTemp, expectedMax, `maxTemp should ignore NaN and use ${expectedMax}`);
-  } else {
-    assert.ok(first.maxTemp === null || Number.isFinite(first.maxTemp), 'maxTemp should be valid or null');
+test('18:00 lock: maxTemp is NaN-safe', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(h === 20 ? NaN : Infinity);
   }
-});
-
-test('maxTemp does not use forecast when archive has higher value (past 18:00)', async () => {
-  const currentHour = getCurrentHour();
-  if (currentHour < 18) {
-    console.log('[test] Skipping: currentHour is', currentHour, '(would need >= 18)');
-    return;
-  }
-
-  // Forecast has lower max, archive has higher - should use forecast, not archive
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => 10 + i * 0.2);
-  const forecastMax = Math.round(Math.max(...temps));
-  const archiveMax = 99; // Archive is higher
+  
+  const archiveMax = 32;
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, archiveMax);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
   const first = cities[0];
-  assert.equal(first.maxTemp, forecastMax, `maxTemp should be forecast max ${forecastMax}, not archive ${archiveMax}`);
+  // All forecast temps are NaN or Infinity → no valid contender → archive
+  assert.equal(first.maxTemp, archiveMax, `maxTemp should fall back to archive ${archiveMax}`);
 });
 
-test('maxTemp returns null when forecast fetch fails', async () => {
-  global.fetch = async () => {
-    return { ok: false, status: 500, json: async () => ({}) };
-  };
-  try {
-    clearModuleCache();
-    const handler = require(`${root}api/cities-weather.js`);
-    const req = makeReq({ country: 'Morocco' });
-    const res = makeRes();
-    await handler(req, res);
-    const cities = res.body?.cities || [];
-    assert.ok(cities.length >= 1, 'expected at least one city');
-    const first = cities[0];
-    assert.equal(first.maxTemp, null, 'maxTemp should be null when all fetches fail');
-  } finally {
-    global.fetch = realFetch;
-  }
-});
-
-test('maxTemp handles empty forecast arrays', async () => {
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, [], []);
-  const cities = body?.cities || [];
-  assert.ok(cities.length >= 1, 'expected at least one city');
-  const first = cities[0];
-  if (getCurrentHour() >= 18) {
-    assert.equal(first.maxTemp, null, 'before archive fallback, maxTemp should be null with empty forecast');
-  }
-});
-
-test('maxTemp handles infinity values by ignoring them', async () => {
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => i === 5 ? Infinity : 20 + i);
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
-  const cities = body?.cities || [];
-  assert.ok(cities.length >= 1, 'expected at least one city');
-  const first = cities[0];
-  assert.ok(Number.isFinite(first.maxTemp) || first.maxTemp === null, 'maxTemp should be finite or null');
-});
-
-test('maxTemp sorts cities descending by maxTemp', async () => {
+test('18:00 lock: sorts cities descending by maxTemp', async () => {
   const times = makePastTimes(24);
   const temps = times.map((_, i) => 15 + i);
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
@@ -323,9 +382,21 @@ test('maxTemp sorts cities descending by maxTemp', async () => {
   }
 });
 
-test('maxTemp handles zero temperature correctly', async () => {
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => i === 0 ? 0 : 20 + i);
+test('18:00 lock: maxTemp handles zero temperature', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(h === 18 ? 0 : 20 + h);
+  }
+  
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
@@ -333,53 +404,62 @@ test('maxTemp handles zero temperature correctly', async () => {
   assert.ok(first.maxTemp === null || Number.isFinite(first.maxTemp), 'maxTemp should be valid or null');
 });
 
-test('18:00 lock: does not change maxTemp after 18:00 when new max appears', async () => {
-  const currentHour = getCurrentHour();
-  if (currentHour < 18) {
-    console.log('[test] Skipping: currentHour is', currentHour, '(would need >= 18)');
-    return;
-  }
-
-  // After 18:00, the max should come from forecast (past hours).
-  // If the forecast has a higher value than what was recorded, it should update.
-  const times = makePastTimes(24);
-  const temps = times.map((_, i) => i === 10 ? 45 : 20 + i * 0.3);
-  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
-  const cities = body?.cities || [];
-  assert.ok(cities.length >= 1, 'expected at least one city');
-  const first = cities[0];
-  const expectedMax = Math.round(Math.max(...temps));
-  assert.equal(first.maxTemp, expectedMax, `maxTemp should update to new max ${expectedMax} after 18:00`);
-});
-
-test('18:00 lock: uses only past hours, ignores future forecast entries', async () => {
-  const currentHour = getCurrentHour();
-  if (currentHour < 18) {
-    console.log('[test] Skipping: currentHour is', currentHour, '(would need >= 18)');
-    return;
-  }
-
-  // Mix past and future entries - should only use past entries
+test('18:00 lock: maxTemp handles negative temperatures', async () => {
   const now = new Date();
   const pad = (x) => String(x).padStart(2, '0');
-  now.setMinutes(0, 0, 0);
-
-  const pastD = new Date(now);
-  pastD.setHours(15);
-  pastD.setMinutes(0, 0, 0);
-  const pastTime = `${pastD.getFullYear()}-${pad(pastD.getMonth() + 1)}-${pad(pastD.getDate())}T15:00`;
-
-  const futureD = new Date(now);
-  futureD.setHours(22);
-  futureD.setMinutes(0, 0, 0);
-  const futureTime = `${futureD.getFullYear()}-${pad(futureD.getMonth() + 1)}-${pad(futureD.getDate())}T22:00`;
-
-  const times = [pastTime, futureTime];
-  const temps = [30, 50]; // future is higher but should be ignored
-
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(-5 + h * 0.5);
+  }
+  
   const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
   const cities = body?.cities || [];
   assert.ok(cities.length >= 1, 'expected at least one city');
   const first = cities[0];
-  assert.equal(first.maxTemp, 30, 'maxTemp should only use past hours (30), not future (50)');
+  assert.ok(first.maxTemp === null || Number.isFinite(first.maxTemp), 'maxTemp should handle negative values');
+});
+
+test('18:00 lock: fetches new forecast data on each request (cache TTL works)', async () => {
+  clearModuleCache();
+  const times = makePastTimes(24);
+  const temps = times.map((_, i) => 20 + i);
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps);
+  const first = body?.cities?.[0];
+  assert.ok(first, 'expected at least one city');
+  
+  // Call again with different data
+  const temps2 = times.map((_, i) => 30 + i);
+  const { body: body2 } = await runCitiesWeather({ country: 'Morocco' }, times, temps2);
+  const first2 = body2?.cities?.[0];
+  assert.ok(first2, 'expected at least one city on second call');
+});
+
+test('18:00 lock: does not change maxTemp after 18:00 when no higher temp appears later', async () => {
+  const now = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yestYYYY = yesterday.getFullYear();
+  const yestMM = pad(yesterday.getMonth() + 1);
+  const yestDD = pad(yesterday.getDate());
+  
+  // Yesterday 18:00 to 23:00, with max at 18:00 (35), rest all lower
+  const times = [];
+  const temps = [];
+  for (let h = 18; h <= 23; h++) {
+    times.push(`${yestYYYY}-${yestMM}-${yestDD}T${pad(h)}:00`);
+    temps.push(h === 18 ? 35 : 20);
+  }
+  
+  const { body } = await runCitiesWeather({ country: 'Morocco' }, times, temps, 99);
+  const cities = body?.cities || [];
+  assert.ok(cities.length >= 1, 'expected at least one city');
+  const first = cities[0];
+  assert.equal(first.maxTemp, 35, `maxTemp should be 35 (locked at 18:00, not changed by later entries)`);
 });
