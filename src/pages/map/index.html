@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@200;400;500&display=swap" rel="stylesheet">
+    <link href="/components/global.css" rel="stylesheet">
+    <link href="/components/header/header.css?v=3" rel="stylesheet">
+    <link href="/pages/map/map.css" rel="stylesheet">
+    <script defer src="/components/units.js"></script>
+    <script defer src="/components/i18n.js"></script>
+    <script defer src="/components/header/header.js"></script>
+    <script defer src="/pages/map/map.js"></script>
+    <title>Weather Map - Open Arsad</title>
+</head>
+<body>
+    <header class="header">
+        <div class="header__left">
+            <div class="header__logo">
+                <img src="/static/logo.png" width="40" height="40" alt="Open Arsad image">
+            </div>
+            <span class="header__site-name">Open Arsad</span>
+        </div>
+
+        <div class="header__mobile-center">
+            <div class="header__logo">
+                <img src="/static/logo.png" width="36" height="36" alt="Open Arsad">
+            </div>
+            <span class="header__site-name">Open Arsad</span>
+        </div>
+
+        <button class="header__hamburger" type="button" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+
+        <nav class="header__nav">
+            <a href="/" class="header__nav-link" data-i18n="nav.home">Home</a>
+            <a href="/dashboard" class="header__nav-link" data-i18n="nav.dashboard">Dashboard</a>
+            <a href="/details" class="header__nav-link" data-i18n="nav.forecast">Details</a>
+            <a href="/map" class="header__nav-link header__nav-link--active" data-i18n="nav.map">Weather Map</a>
+            <a href="/climatology" class="header__nav-link" data-i18n="nav.climatology">Climatology</a>
+        </nav>
+
+        <div class="header__mobile-menu">
+            <div class="header__mobile-menu-header">
+                <div class="header__logo">
+                    <img src="/static/logo.png" width="36" height="36" alt="Open Arsad">
+                </div>
+                <span class="header__mobile-menu-title">Open Arsad</span>
+            </div>
+            <div class="header__mobile-nav">
+                <a href="/" class="header__mobile-nav-link" data-i18n="nav.home">Home</a>
+                <a href="/dashboard" class="header__mobile-nav-link" data-i18n="nav.dashboard">Dashboard</a>
+                <a href="/details" class="header__mobile-nav-link" data-i18n="nav.forecast">Details</a>
+                <a href="/map" class="header__mobile-nav-link header__mobile-nav-link--active" data-i18n="nav.map">Weather Map</a>
+                <a href="/climatology" class="header__mobile-nav-link" data-i18n="nav.climatology">Climatology</a>
+            </div>
+        </div>
+
+        <div class="header__right-controls">
+            <button class="header__geo-button" type="button" data-i18n-title="header.geoTitle" title="Choose location">
+                <img src="/static/gps.png" width="28" height="28" alt="location image">
+            </button>
+
+            <button class="header__settings-button" type="button" data-i18n-title="header.settingsTitle" title="Settings" id="settings-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="map-page">
+        <aside class="map-sidebar">
+            <div class="map-sidebar-header">
+                <span class="map-sidebar-title">Menu</span>
+            </div>
+            <nav class="map-sidebar-nav">
+                <a href="/map" class="map-sidebar-nav-link map-sidebar-nav-link--active" data-i18n="nav.map">Weather Map</a>
+                <a href="/dashboard" class="map-sidebar-nav-link" data-i18n="nav.dashboard">Dashboard</a>
+                <a href="/data-import" class="map-sidebar-nav-link" data-i18n="nav.dataImport">Data Import</a>
+                <a href="/observations" class="map-sidebar-nav-link" data-i18n="nav.observations">Weather Observations</a>
+                <a href="/forecasts" class="map-sidebar-nav-link" data-i18n="nav.forecasts">Forecasts</a>
+                <a href="/statistics" class="map-sidebar-nav-link" data-i18n="nav.statistics">Statistics</a>
+                <a href="/historical" class="map-sidebar-nav-link" data-i18n="nav.historical">Historical Data</a>
+                <a href="/reports" class="map-sidebar-nav-link" data-i18n="nav.reports">Reports</a>
+                <a href="/settings" class="map-sidebar-nav-link" data-i18n="nav.settings">Settings</a>
+            </nav>
+        </aside>
+
+        <main class="map-main">
+            <header class="map-header">
+                <h1 class="map-header-title" data-i18n="map.title">Weather Map</h1>
+                <p class="map-header-subtitle" data-i18n="map.subtitle">Interactive visualization of meteorological observations and forecasts.</p>
+                
+                <div class="map-header-controls">
+                    <input type="text" class="map-search" placeholder="Search city, country or coordinates..." data-i18n-placeholder="map.searchPlaceholder">
+                    <button class="map-btn" type="button" data-i18n="map.currentLocation">Current Location</button>
+                    <button class="map-btn" type="button" data-i18n="map.refreshData">Refresh Data</button>
+                    <button class="map-btn" type="button" data-i18n="map.exportMap">Export Map</button>
+                </div>
+            </header>
+
+            <div class="map-container">
+                <div id="interactive-map" class="map"></div>
+            </div>
+
+            <div class="map-controls">
+                <div class="control-panel">
+                    <div class="control-section">
+                        <h3 data-i18n="map.layers">Map Layers</h3>
+                        <div class="layer-checkboxes">
+                            <label class="layer-checkbox"><input type="checkbox" checked data-layer="temperature"> Temperature</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="precipitation"> Precipitation</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="wind"> Wind</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="humidity"> Humidity</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="pressure"> Pressure</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="clouds"> Clouds</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="radar"> Radar</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="satellite"> Satellite</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="lightning"> Lightning</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="airQuality"> Air Quality</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="uvIndex"> UV Index</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="visibility"> Visibility</label>
+                            <label class="layer-checkbox"><input type="checkbox" data-layer="heatIndex"> Heat Index</label>
+                        </div>
+                    </div>
+
+                    <div class="control-section">
+                        <h3 data-i18n="map.forecast">Forecast</h3>
+                        <select class="map-select">
+                            <option value="current" selected data-i18n="map.forecastCurrent">Current</option>
+                            <option value="24h" data-i18n="map.forecast24h">Next 24 hours</option>
+                            <option value="3d" data-i18n="map.forecast3d">3 days</option>
+                            <option value="7d" data-i18n="map.forecast7d">7 days</option>
+                        </select>
+                    </div>
+
+                    <div class="control-section">
+                        <h3 data-i18n="map.animation">Animation</h3>
+                        <div class="animation-controls">
+                            <button class="map-btn btn-primary" type="button" data-i18n="map.play">Play</button>
+                            <button class="map-btn" type="button" data-i18n="map.pause">Pause</button>
+                            <button class="map-btn" type="button" data-i18n="map.nextFrame">Next Frame</button>
+                            <button class="map-btn" type="button" data-i18n="map.prevFrame">Previous Frame</button>
+                        </div>
+                        <div class="animation-speed">
+                            <label data-i18n="map.speed">Speed:</label>
+                            <input type="range" min="0.5" max="3" step="0.1" value="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="map-timeline">
+                <div class="timeline-controls">
+                    <button class="map-btn" type="button" data-i18n="map.prevHour">Prev Hour</button>
+                    <button class="map-btn btn-primary" type="button" data-i18n="map.playAnimation">Play Animation</button>
+                    <button class="map-btn" type="button" data-i18n="map.stopAnimation">Stop</button>
+                </div>
+                <div class="timeline-slider">
+                    <input type="range" min="0" max="24" value="12">
+                </div>
+            </div>
+
+            <div class="map-legend">
+                <h3 data-i18n="map.legend">Legend</h3>
+                <div class="legend-section">
+                    <h4 data-i18n="map.legendTemperature">Temperature</h4>
+                    <div class="legend-gradient"></div>
+                </div>
+                <div class="legend-section">
+                    <h4 data-i18n="map.legendRain">Rain</h4>
+                    <div class="legend-rain">
+                        <span class="legend-rain-light"></span> Light
+                        <span class="legend-rain-moderate"></span> Moderate
+                        <span class="legend-rain-heavy"></span> Heavy
+                    </div>
+                </div>
+                <div class="legend-section">
+                    <h4 data-i18n="map.legendWind">Wind Speed</h4>
+                    <div class="legend-wind">
+                        <span class="legend-wind-light"></span> 0-10 km/h
+                        <span class="legend-wind-medium"></span> 10-30 km/h
+                        <span class="legend-wind-strong"></span> >30 km/h
+                    </div>
+                </div>
+            </div>
+
+            <div class="map-info-panel">
+                <div class="info-card">
+                    <h4 data-i18n="map.temperature">Temperature</h4>
+                    <div class="info-value" id="info-temp">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.feelsLike">Feels Like</h4>
+                    <div class="info-value" id="info-feels-like">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.humidity">Humidity</h4>
+                    <div class="info-value" id="info-humidity">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.pressure">Pressure</h4>
+                    <div class="info-value" id="info-pressure">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.windSpeed">Wind Speed</h4>
+                    <div class="info-value" id="info-wind">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.visibility">Visibility</h4>
+                    <div class="info-value" id="info-visibility">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.uvIndex">UV Index</h4>
+                    <div class="info-value" id="info-uv">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.cloudCover">Cloud Cover</h4>
+                    <div class="info-value" id="info-clouds">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.rainProb">Rain Probability</h4>
+                    <div class="info-value" id="info-rain-prob">--</div>
+                </div>
+                <div class="info-card">
+                    <h4>Sunrise</h4>
+                    <div class="info-value" id="info-sunrise">--</div>
+                </div>
+                <div class="info-card">
+                    <h4>Sunset</h4>
+                    <div class="info-value" id="info-sunset">--</div>
+                </div>
+                <div class="info-card">
+                    <h4 data-i18n="map.moonPhase">Moon Phase</h4>
+                    <div class="info-value" id="info-moon">--</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="location-modal-backdrop" hidden>
+        <div class="location-modal" role="dialog" aria-modal="true">
+            <h2 data-i18n="location.title">Choose city &amp; country</h2>
+            <label data-i18n="location.country">Country</label>
+            <select class="location-country">
+                <option value="">Select a country</option>
+            </select>
+            <label data-i18n="location.city">City</label>
+            <select class="location-city" disabled>
+                <option value="">Select a country first</option>
+            </select>
+            <div class="location-modal-actions">
+                <button class="location-cancel" data-i18n="location.cancel">Cancel</button>
+                <button class="location-confirm primary" data-i18n="location.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

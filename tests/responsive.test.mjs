@@ -1,0 +1,46 @@
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const read = (p) => readFileSync(`${__dirname}../${p}`, 'utf8');
+
+const headerCss = read('src/components/header/header.css');
+const globalCss = read('src/components/global.css');
+const detailsCss = read('src/pages/details/details.css');
+const dashboardCss = read('src/pages/dashboard/dashboard.css');
+
+test('header does not use 100vw (avoids horizontal scroll) and can wrap', () => {
+  assert.ok(!/width:\s*100vw/.test(headerCss), 'header must not use width:100vw');
+  assert.ok(/flex-wrap:\s*wrap/.test(headerCss), 'header should allow wrapping');
+});
+
+test('header has a mobile breakpoint that un-centers the nav (LTR order)', () => {
+  assert.ok(/@media/.test(headerCss), 'header should have a media query');
+  // nav must drop the absolute centering on small screens so it stacks LTR
+  assert.ok(/position:\s*static/.test(headerCss), 'nav should become static on mobile');
+});
+
+test('header is forced LTR even when the document is RTL (Arabic)', () => {
+  // .header must declare direction: ltr so its order is never flipped
+  assert.ok(/\.header\s*\{[^}]*direction:\s*ltr/.test(headerCss), 'header must be direction: ltr');
+});
+
+test('global body stacks content vertically (block flow, no flex)', () => {
+  const bodyRule = globalCss.match(/^\s*body\s*\{([^}]*)\}/m)[1];
+  assert.ok(/display:\s*block/.test(bodyRule), 'body should be display:block so header/ticker/page stack and never collapse widths');
+  assert.ok(!/display:\s*flex/.test(bodyRule), 'body must not be a flex container (would mis-size the dashboard grid)');
+});
+
+test('details forecast toolbar is aligned with the card (arrow offset, RTL-aware) and resets on mobile', () => {
+  assert.ok(/\.forecast-toolbar[^}]*padding-inline-start:\s*48px/.test(detailsCss), 'toolbar should offset by arrow width (logical)');
+  assert.ok(/\.forecast-block--compact\s+\.forecast-toolbar[^}]*padding-inline-start:\s*0/.test(detailsCss), 'compact 7-day toolbar should reset padding');
+  assert.ok(/\.forecast-block--compact\s+\.forecast-toolbar[^}]*margin-inline:\s*auto/.test(detailsCss), 'compact 7-day toolbar should center above the card');
+  assert.ok(/@media/.test(detailsCss), 'details page should have a media query');
+});
+
+test('dashboard and details pages define responsive breakpoints', () => {
+  assert.ok(/@media/.test(dashboardCss), 'dashboard should have a media query');
+  assert.ok(/@media/.test(detailsCss), 'details should have a media query');
+});

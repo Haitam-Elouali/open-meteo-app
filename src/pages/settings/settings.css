@@ -1,0 +1,135 @@
+.page {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 16px;
+}
+
+.card {
+    background: rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(6px);
+    border-radius: 24px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+}
+
+.card h1 {
+    color: white;
+    font-size: 28px;
+    margin-bottom: 16px;
+    font-weight: 500;
+}
+
+.settings-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 16px;
+    margin-top: 16px;
+}
+
+.settings-section h2 {
+    color: white;
+    font-size: 18px;
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.settings-section label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+    margin-bottom: 6px;
+    margin-top: 10px;
+}
+
+.settings-icon {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.settings-hint {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.settings-select,
+.settings-input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(15, 23, 42, 0.6);
+    color: white;
+    outline: none;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.settings-select option {
+    background-color: #0f172a;
+    color: white;
+}
+
+.settings-input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.favorites-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.favorite-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+.favorite-item .name {
+    color: white;
+    font-size: 14px;
+}
+
+.favorite-item .coords {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+}
+
+.favorite-item button {
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    padding: 4px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.settings-placeholder {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    padding: 8px 0;
+}
+
+.favorites-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.settings-button {
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    background: white;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
