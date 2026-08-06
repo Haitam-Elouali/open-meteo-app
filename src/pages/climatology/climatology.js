@@ -50,6 +50,17 @@
     return String(n).padStart(2, '0');
   }
 
+  // ERA5 archive has no uv_index. When it is missing we estimate UV from the
+  // shortwave (solar) radiation that the archive does provide. Daylight peak
+  // clear-sky radiation is ~1000 W/m², so dividing by ~95 gives a UV index in
+  // the right 0–11+ range. Nighttime/zero radiation yields null.
+  function uvValue(uvs, sw, i) {
+    if (uvs && Number.isFinite(uvs[i]) && uvs[i] > 0) return uvs[i];
+    const rad = sw && Number.isFinite(sw[i]) ? sw[i] : null;
+    if (rad == null || rad <= 0) return null;
+    return Math.max(0, Math.round((rad / 95) * 10) / 10);
+  }
+
   async function fetchClimatology(lat, lon, date, hour) {
     try {
       const url = new URL('/api/archive', window.location.origin);
@@ -82,6 +93,7 @@
       const pressures = data?.hourly?.surface_pressure || [];
       const clouds = data?.hourly?.cloud_cover || [];
       const uvs = data?.hourly?.uv_index || [];
+      const sw = data?.hourly?.shortwave_radiation || [];
 
       const target = `${date}T${pad2(hour)}:00`;
       const idx = times.indexOf(target);
@@ -101,7 +113,7 @@
           wind: Number.isFinite(winds[useIdx]) ? winds[useIdx] : null,
           pressure: Number.isFinite(pressures[useIdx]) ? pressures[useIdx] : null,
           cloud: Number.isFinite(clouds[useIdx]) ? clouds[useIdx] : null,
-          uv: Number.isFinite(uvs[useIdx]) ? uvs[useIdx] : null,
+          uv: uvValue(uvs, sw, useIdx),
           hourly: { times, temps }
         };
         try {
@@ -119,7 +131,7 @@
         wind: Number.isFinite(winds[idx]) ? winds[idx] : null,
         pressure: Number.isFinite(pressures[idx]) ? pressures[idx] : null,
         cloud: Number.isFinite(clouds[idx]) ? clouds[idx] : null,
-        uv: Number.isFinite(uvs[idx]) ? uvs[idx] : null,
+        uv: uvValue(uvs, sw, idx),
         hourly: { times, temps }
       };
       try {

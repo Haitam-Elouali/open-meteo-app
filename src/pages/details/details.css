@@ -217,13 +217,16 @@
 }
 
 .forecast-block--compact .forecast-toolbar {
-    padding-inline-start: 0;
-    margin-inline: auto;
-    width: fit-content;
+    padding-inline-start: 48px;
+    margin-inline: 0;
+    width: auto;
 }
 
 @media (max-width: 600px) {
     .forecast-toolbar {
+        padding-inline-start: 0;
+    }
+    .forecast-block--compact .forecast-toolbar {
         padding-inline-start: 0;
     }
 }
@@ -294,7 +297,7 @@
 .forecast-scroll {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 8px;
     position: relative;
     margin: 0 auto;

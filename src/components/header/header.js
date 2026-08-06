@@ -8,18 +8,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!hamburger || !nav) return;
 
     const closeNav = () => {
-        header.classList.remove('is-nav-open');
+        header.classList.remove('is-menu-open');
         hamburger.setAttribute('aria-expanded', 'false');
     };
 
     const openNav = () => {
-        header.classList.add('is-nav-open');
+        header.classList.add('is-menu-open');
         hamburger.setAttribute('aria-expanded', 'true');
     };
 
     hamburger.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isOpen = header.classList.contains('is-nav-open');
+        const isOpen = header.classList.contains('is-menu-open');
         if (isOpen) {
             closeNav();
         } else {
