@@ -887,74 +887,6 @@
     }
 
     // ============================================================
-    // CURRENT LOCATION
-    // ============================================================
-    function initLocateButton() {
-        var btn = document.getElementById('map-locate-btn');
-        if (!btn) return;
-
-        btn.addEventListener('click', function () {
-            if (btn.classList.contains('is-loading')) return;
-            locateUser();
-        });
-    }
-
-    function locateUser() {
-        var btn = document.getElementById('map-locate-btn');
-        if (!btn) return;
-
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser.');
-            return;
-        }
-
-        btn.classList.add('is-loading');
-        navigator.geolocation.getCurrentPosition(
-            function (pos) {
-                btn.classList.remove('is-loading');
-                var lat = pos.coords.latitude, lng = pos.coords.longitude;
-                var accuracy = pos.coords.accuracy;
-
-                // Remove old markers
-                if (state.locateMarker) map.removeLayer(state.locateMarker);
-                if (state.locateAccuracy) map.removeLayer(state.locateAccuracy);
-
-                // Accuracy circle
-                state.locateAccuracy = L.circle([lat, lng], {
-                    radius: accuracy,
-                    color: '#3b82f6',
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.1,
-                    weight: 1,
-                    opacity: 0.4
-                }).addTo(map);
-
-                // Location marker
-                state.locateMarker = L.circleMarker([lat, lng], {
-                    radius: 8,
-                    color: '#fff',
-                    fillColor: '#3b82f6',
-                    fillOpacity: 1,
-                    weight: 3,
-                    opacity: 1
-                }).addTo(map);
-
-                map.flyTo([lat, lng], 12, { duration: 1.5 });
-                setTimeout(function () { updateInfo(lat, lng); }, 1600);
-            },
-            function (err) {
-                btn.classList.remove('is-loading');
-                var msg = 'Unable to retrieve your location.';
-                if (err.code === 1) msg = 'Location permission denied. Please enable location access.';
-                else if (err.code === 2) msg = 'Location unavailable. Please try again.';
-                else if (err.code === 3) msg = 'Location request timed out. Please try again.';
-                alert(msg);
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-        );
-    }
-
-    // ============================================================
     // WEATHER STATIONS
     // ============================================================
     async function loadWeatherStations() {
@@ -1171,12 +1103,30 @@
             });
         }
 
-        // Info panel toggle
+        // Info panel close / reopen
         var infoPanel = document.getElementById('map-info-panel');
         var infoToggle = document.getElementById('map-info-toggle');
+        var infoClose = document.getElementById('map-info-close');
+        var infoFab = document.getElementById('map-info-fab');
+
+        if (infoClose && infoPanel) {
+            infoClose.addEventListener('click', function () {
+                infoPanel.classList.add('is-hidden');
+                if (infoFab) infoFab.classList.add('visible');
+            });
+        }
+
         if (infoToggle && infoPanel) {
             infoToggle.addEventListener('click', function () {
-                infoPanel.classList.toggle('is-hidden');
+                infoPanel.classList.add('is-hidden');
+                if (infoFab) infoFab.classList.add('visible');
+            });
+        }
+
+        if (infoFab && infoPanel) {
+            infoFab.addEventListener('click', function () {
+                infoPanel.classList.remove('is-hidden');
+                infoFab.classList.remove('visible');
             });
         }
     }
@@ -1186,9 +1136,7 @@
     // ============================================================
     function init() {
         initMap();
-        initLocateButton();
         initControls();
-        loadWeatherStations();
 
         // Set default date
         var def = new Date(Date.now() - 24 * 3600 * 1000);

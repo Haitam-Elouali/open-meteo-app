@@ -139,20 +139,8 @@
     </div>
 
     <div class="page">
-        <div class="map-page-header">
-            <h1 data-i18n="map.title">Weather Map</h1>
-            <p data-i18n="map.subtitle">Interactive visualization of meteorological observations and forecasts.</p>
-        </div>
-
         <div class="map-page-body">
             <div class="map-container" id="map"></div>
-
-            <!-- Locate Button -->
-            <button class="map-locate-fab" id="map-locate-btn" type="button" aria-label="Find my location" title="Current location">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="4 2"/>
-                </svg>
-            </button>
 
             <!-- Layer Panel -->
             <aside class="map-sidebar card" id="map-sidebar">
@@ -204,6 +192,9 @@
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
                 </button>
                 <h3 data-i18n="map.infoPanel.title">Weather Summary</h3>
+                <button class="map-info-close" id="map-info-close" type="button" aria-label="Close weather summary">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
                 <p class="map-info-hint" id="map-info-hint">Click the map to inspect a location.</p>
                 <div class="map-info-grid" id="map-info-grid" hidden>
                     <div class="map-info-card">
@@ -248,11 +239,16 @@
                     </div>
                 </div>
                 <p class="map-info-time" id="map-info-time"></p>
+                <button class="map-info-reopen" id="map-info-reopen" type="button" aria-label="Show weather summary">Weather Summary</button>
             </div>
 
             <!-- Hover Inspection Tooltip -->
             <div class="map-hover-tooltip" id="map-hover-tooltip" hidden></div>
         </div>
     </div>
+
+    <button class="map-fab map-fab--info" id="map-info-fab" type="button" aria-label="Show weather summary">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+    </button>
 </body>
 </html>
