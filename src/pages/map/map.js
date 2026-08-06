@@ -590,8 +590,8 @@
     // ============================================================
     // WIND ANIMATION
     // ============================================================
-    var WIND_PARTICLE_COUNT = 1500;
-    var WIND_PARTICLE_MAX_LIFE = 90;
+    var WIND_PARTICLE_COUNT = 500;
+    var WIND_PARTICLE_MAX_LIFE = 60;
 
     function startWindAnimation() {
         stopWindAnimation();
@@ -674,7 +674,7 @@
             if (speed == null || dir == null) { p.life++; if (p.life > p.maxLife) resetWindParticle(p); continue; }
 
             var rad = ((dir - 90) * Math.PI) / 180;
-            var step = 0.003 + (speed / 80) * 0.01;
+            var step = 0.004 + (speed / 80) * 0.012;
             p.x += Math.cos(rad) * step;
             p.y += Math.sin(rad) * step;
             p.life++;
@@ -684,10 +684,9 @@
             var alpha = Math.max(0.05, 1 - p.life / p.maxLife);
             var col = colorFor('wind', speed);
             if (col) {
-                windCtx.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + (alpha * 0.7) + ')';
-                windCtx.beginPath();
-                windCtx.arc(px, py, 1.5, 0, Math.PI * 2);
-                windCtx.fill();
+                windCtx.globalAlpha = alpha * 0.7;
+                windCtx.fillStyle = 'rgb(' + col[0] + ',' + col[1] + ',' + col[2] + ')';
+                windCtx.fillRect(px - 1.5, py - 1.5, 3, 3);
             }
 
             if (p.life > p.maxLife || p.x < -0.05 || p.x > 1.05 || p.y < -0.05 || p.y > 1.05) {
@@ -695,6 +694,7 @@
             }
         }
 
+        windCtx.globalAlpha = 1;
         windAnimId = requestAnimationFrame(animateWind);
     }
 
@@ -1150,59 +1150,6 @@
     }
 
     // ============================================================
-    // HOVER INSPECTION
-    // ============================================================
-    function initHoverInspection() {
-        var tooltip = document.getElementById('map-hover-tooltip');
-        if (!tooltip) return;
-    }
-
-    function onMapMouseMove(e) {
-        var tooltip = document.getElementById('map-hover-tooltip');
-        if (!tooltip || !state.grid || !state.layer) return;
-
-        var lat = e.latlng.lat, lng = e.latlng.lng;
-        var g = state.grid.g;
-        var nx = g.lons.length, ny = g.lats.length;
-        var x = (lng - g.west) / (g.east - g.west);
-        var y = (g.north - lat) / (g.north - g.south);
-
-        if (x < 0 || x > 1 || y < 0 || y > 1) {
-            tooltip.hidden = true;
-            return;
-        }
-
-        var ix = Math.floor(x * (nx - 1));
-        var iy = Math.floor(y * (ny - 1));
-        var k = iy * nx + ix;
-        var hh = state.grid.arr[k] && state.grid.arr[k].hourly;
-        if (!hh) {
-            tooltip.hidden = true;
-            return;
-        }
-
-        var cfg = LAYERS[state.layer];
-        var hidx = state.frameIndex;
-        var val = hh[cfg.var] && hh[cfg.var][hidx] != null ? hh[cfg.var][hidx] : null;
-        var tempVal = hh.temperature_2m && hh.temperature_2m[hidx] != null ? hh.temperature_2m[hidx] : null;
-        var windVal = hh.wind_speed_10m && hh.wind_speed_10m[hidx] != null ? hh.wind_speed_10m[hidx] : null;
-
-        var html = '<strong>' + lat.toFixed(2) + '°, ' + lng.toFixed(2) + '°</strong>';
-        if (tempVal != null) html += '<br>🌡️ ' + Math.round(temperature(tempVal)) + '°';
-        if (val != null) html += '<br>' + cfg.icon + ' ' + cfg.label + ': ' + Math.round(val) + cfg.unit;
-        if (windVal != null) html += '<br>💨 Wind: ' + Math.round(windSpeed(windVal)) + ' ' + windLabel();
-
-        tooltip.innerHTML = html;
-        tooltip.hidden = false;
-        tooltip.style.left = e.containerPoint.x + 'px';
-        tooltip.style.top = (e.containerPoint.y - 10) + 'px';
-    }
-
-    function updateHoverInspection() {
-        // Force hover update if mouse is over map
-    }
-
-    // ============================================================
     // RADAR & SATELLITE
     // ============================================================
     async function toggleRadar(on) {
@@ -1262,9 +1209,8 @@
 
     function onMapMouseMove(e) {
         updateCoordsDisplay();
-        if (!state.grid || !state.layer) return;
         var tooltip = document.getElementById('map-hover-tooltip');
-        if (!tooltip) return;
+        if (!tooltip || !state.grid || !state.layer) return;
 
         var lat = e.latlng.lat, lng = e.latlng.lng;
         var g = state.grid.g;
@@ -1415,46 +1361,35 @@
             });
         }
 
-        // Layer toggles
-        var layerItems = document.querySelectorAll('.map-layer-item');
-        layerItems.forEach(function (item) {
-            var checkbox = item.querySelector('.map-layer-checkbox');
-            var opacitySlider = item.querySelector('.map-layer-opacity');
-            var opacityVal = item.querySelector('.map-layer-opacity-val');
-            var layerKey = item.dataset.layer;
+        // Layer select (dropdown)
+        var layerSelect = document.getElementById('map-layer-select');
+        var layerOpacity = document.getElementById('map-layer-opacity');
+        var layerOpacityVal = document.getElementById('map-layer-opacity-val');
 
-            if (checkbox) {
-                checkbox.addEventListener('change', function () {
-                    state.activeLayers[layerKey] = checkbox.checked;
-                    if (checkbox.checked) {
-                        if (!state.layer) state.layer = layerKey;
-                    } else {
-                        var activeKeys = Object.keys(state.activeLayers).filter(function (k) { return state.activeLayers[k]; });
-                        if (activeKeys.length === 0) {
-                            state.layer = null;
-                            clearLayers();
-                            updateLegend();
-                        } else if (state.layer === layerKey) {
-                            state.layer = activeKeys[0];
-                            fetchGrid();
-                        }
-                    }
-                    fetchGrid();
-                    updateLegend();
-                });
-            }
+        if (layerSelect) {
+            layerSelect.value = state.layer || 'temperature';
+            layerSelect.addEventListener('change', function () {
+                state.layer = layerSelect.value;
+                state.activeLayers = {};
+                state.activeLayers[state.layer] = true;
+                clearLayers();
+                updateLegend();
+                fetchGrid();
+            });
+        }
 
-            if (opacitySlider) {
-                opacitySlider.addEventListener('input', function () {
-                    var val = parseInt(opacitySlider.value, 10);
-                    state.opacities[layerKey] = val / 100;
-                    if (opacityVal) opacityVal.textContent = val + '%';
-                    if (overlayLayer && state.layer === layerKey) {
-                        overlayLayer.setOpacity(state.opacities[layerKey]);
-                    }
-                });
-            }
-        });
+        if (layerOpacity) {
+            layerOpacity.value = Math.round((state.opacities[state.layer] || 0.82) * 100);
+            if (layerOpacityVal) layerOpacityVal.textContent = layerOpacity.value + '%';
+            layerOpacity.addEventListener('input', function () {
+                var val = parseInt(layerOpacity.value, 10);
+                state.opacities[state.layer] = val / 100;
+                if (layerOpacityVal) layerOpacityVal.textContent = val + '%';
+                if (overlayLayer) {
+                    overlayLayer.setOpacity(state.opacities[state.layer]);
+                }
+            });
+        }
 
         // Sidebar toggle
         var sidebarToggle = document.getElementById('map-sidebar-toggle');
@@ -1521,7 +1456,6 @@
         initMap();
         initSearch();
         initLocateButton();
-        initHoverInspection();
         initControls();
         loadWeatherStations();
 
@@ -1531,21 +1465,20 @@
         state.date = def;
         syncDateTimeInputs();
 
-        // Set default active layers
-        state.activeLayers = { temperature: true, wind: true };
-        state.opacities = { temperature: 0.82, wind: 0.82 };
+        // Set default layer
         state.layer = 'temperature';
+        state.activeLayers = { temperature: true };
+        state.opacities = { temperature: 0.82 };
 
-        // Update layer checkboxes
-        document.querySelectorAll('.map-layer-item').forEach(function (item) {
-            var checkbox = item.querySelector('.map-layer-checkbox');
-            var layerKey = item.dataset.layer;
-            if (checkbox && state.activeLayers[layerKey]) {
-                checkbox.checked = true;
-            } else if (checkbox) {
-                checkbox.checked = false;
-            }
-        });
+        // Update layer dropdown
+        var layerSelect = document.getElementById('map-layer-select');
+        var layerOpacity = document.getElementById('map-layer-opacity');
+        var layerOpacityVal = document.getElementById('map-layer-opacity-val');
+        if (layerSelect) layerSelect.value = state.layer;
+        if (layerOpacity) {
+            layerOpacity.value = Math.round((state.opacities[state.layer] || 0.82) * 100);
+            if (layerOpacityVal) layerOpacityVal.textContent = layerOpacity.value + '%';
+        }
 
         updateLegend();
         updateCoordsDisplay();
@@ -1567,15 +1500,20 @@
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
             if (e.key === ' ' || e.code === 'Space') {
                 e.preventDefault();
+                var playBtn = document.getElementById('timeline-play');
                 if (playBtn) playBtn.click();
             } else if (e.key === 'ArrowLeft') {
+                var prevBtn = document.getElementById('timeline-prev');
                 if (prevBtn) prevBtn.click();
             } else if (e.key === 'ArrowRight') {
+                var nextBtn = document.getElementById('timeline-next');
                 if (nextBtn) nextBtn.click();
             } else if (e.key === 'f' || e.key === 'F') {
+                var fullscreenBtn = document.getElementById('map-ctrl-fullscreen');
                 if (fullscreenBtn) fullscreenBtn.click();
             } else if (e.key === 'l' || e.key === 'L') {
-                if (document.getElementById('map-locate-btn')) document.getElementById('map-locate-btn').click();
+                var locateBtn = document.getElementById('map-locate-btn');
+                if (locateBtn) locateBtn.click();
             }
         });
     }

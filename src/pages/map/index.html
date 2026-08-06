@@ -177,55 +177,22 @@
                     </button>
                 </div>
 
-                <div class="map-layers" id="map-layers">
-                    <label class="map-layer-item" data-layer="temperature">
-                        <input type="checkbox" class="map-layer-checkbox" checked>
-                        <span class="map-layer-label" data-i18n="map.layers.temperature">Temperature</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Temperature opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="wind">
-                        <input type="checkbox" class="map-layer-checkbox" checked>
-                        <span class="map-layer-label" data-i18n="map.layers.wind">Wind</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Wind opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="precipitation">
-                        <input type="checkbox" class="map-layer-checkbox">
-                        <span class="map-layer-label" data-i18n="map.layers.precipitation">Precipitation</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Precipitation opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="humidity">
-                        <input type="checkbox" class="map-layer-checkbox">
-                        <span class="map-layer-label" data-i18n="map.layers.humidity">Humidity</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Humidity opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="pressure">
-                        <input type="checkbox" class="map-layer-checkbox">
-                        <span class="map-layer-label" data-i18n="map.layers.pressure">Pressure</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Pressure opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="clouds">
-                        <input type="checkbox" class="map-layer-checkbox">
-                        <span class="map-layer-label" data-i18n="map.layers.clouds">Clouds</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Clouds opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="uv">
-                        <input type="checkbox" class="map-layer-checkbox">
-                        <span class="map-layer-label" data-i18n="map.layers.uvIndex">UV Index</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="UV Index opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
-                    <label class="map-layer-item" data-layer="dewpoint">
-                        <input type="checkbox" class="map-layer-checkbox">
-                        <span class="map-layer-label" data-i18n="map.layers.dewPoint">Dew Point</span>
-                        <input type="range" class="map-layer-opacity" min="0" max="100" value="82" aria-label="Dew Point opacity">
-                        <span class="map-layer-opacity-val">82%</span>
-                    </label>
+                <label class="map-field-label" data-i18n="map.layers.layer">Layer</label>
+                <select id="map-layer-select" class="map-layer-select">
+                    <option value="temperature" data-i18n="map.layers.temperature">Temperature</option>
+                    <option value="wind" data-i18n="map.layers.wind">Wind</option>
+                    <option value="precipitation" data-i18n="map.layers.precipitation">Precipitation</option>
+                    <option value="humidity" data-i18n="map.layers.humidity">Humidity</option>
+                    <option value="pressure" data-i18n="map.layers.pressure">Pressure</option>
+                    <option value="clouds" data-i18n="map.layers.clouds">Clouds</option>
+                    <option value="uv" data-i18n="map.layers.uvIndex">UV Index</option>
+                    <option value="dewpoint" data-i18n="map.layers.dewPoint">Dew Point</option>
+                </select>
+
+                <div class="map-layer-opacity-row">
+                    <label for="map-layer-opacity" data-i18n="map.layers.opacity">Opacity</label>
+                    <input type="range" class="map-layer-opacity" id="map-layer-opacity" min="0" max="100" value="82" aria-label="Layer opacity">
+                    <span class="map-layer-opacity-val" id="map-layer-opacity-val">82%</span>
                 </div>
 
                 <div class="map-panel-section">
