@@ -147,20 +147,6 @@
         <div class="map-page-body">
             <div class="map-container" id="map"></div>
 
-            <!-- Search Bar -->
-            <div class="map-search" id="map-search">
-                <div class="map-search-input-wrapper">
-                    <svg class="map-search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                    </svg>
-                    <input type="text" class="map-search-input" id="map-search-input" placeholder="Search city or coordinates..." autocomplete="off" aria-label="Search location">
-                    <button class="map-search-clear" id="map-search-clear" type="button" aria-label="Clear search" hidden>
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                    </button>
-                </div>
-                <div class="map-search-dropdown" id="map-search-dropdown" hidden></div>
-            </div>
-
             <!-- Locate Button -->
             <button class="map-locate-fab" id="map-locate-btn" type="button" aria-label="Find my location" title="Current location">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -266,64 +252,6 @@
 
             <!-- Hover Inspection Tooltip -->
             <div class="map-hover-tooltip" id="map-hover-tooltip" hidden></div>
-
-            <!-- Timeline -->
-            <div class="map-timeline card" id="map-timeline">
-                <div class="timeline-controls">
-                    <button class="timeline-btn" id="timeline-prev" type="button" aria-label="Previous hour" title="Previous hour">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="19,3 5,12 19,21"/></svg>
-                    </button>
-                    <button class="timeline-btn" id="timeline-play" type="button" aria-label="Play animation" title="Play/Pause">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                    </button>
-                    <button class="timeline-btn" id="timeline-next" type="button" aria-label="Next hour" title="Next hour">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                    </button>
-                    <button class="timeline-btn" id="timeline-stop" type="button" aria-label="Stop animation" title="Stop">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                    </button>
-                    <span class="timeline-current" id="timeline-current"></span>
-                </div>
-                <div class="timeline-slider-wrapper">
-                    <input type="range" class="timeline-slider" id="timeline-slider" min="0" max="0" value="0" step="1" aria-label="Timeline slider">
-                </div>
-                <div class="timeline-fields">
-                    <label class="timeline-field">
-                        <span data-i18n="climatology.date">Date</span>
-                        <input type="date" id="timeline-date">
-                    </label>
-                    <label class="timeline-field">
-                        <span data-i18n="climatology.hour">Time</span>
-                        <input type="time" id="timeline-time" step="3600">
-                    </label>
-                    <button class="timeline-btn" id="timeline-now" type="button">Now</button>
-                </div>
-                <div class="timeline-speed">
-                    <label for="timeline-speed" data-i18n="map.timeline.speed">Speed</label>
-                    <select id="timeline-speed" class="timeline-speed-select">
-                        <option value="2000">0.5x</option>
-                        <option value="1000" selected>1x</option>
-                        <option value="500">2x</option>
-                        <option value="250">4x</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Map Controls -->
-            <div class="map-controls" id="map-controls">
-                <button class="map-ctrl-btn" id="map-ctrl-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
-                <button class="map-ctrl-btn" id="map-ctrl-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-                <button class="map-ctrl-btn" id="map-ctrl-compass" type="button" aria-label="Reset north" title="Reset north">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M12 6l-3 6 3 6" stroke-width="3"/></svg>
-                </button>
-                <button class="map-ctrl-btn" id="map-ctrl-fullscreen" type="button" aria-label="Toggle fullscreen" title="Fullscreen">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-                </button>
-                <button class="map-ctrl-btn" id="map-ctrl-scale" type="button" aria-label="Toggle scale" title="Scale">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path d="M9 9h6v6H9z"/></svg>
-                </button>
-                <span class="map-ctrl-coords" id="map-ctrl-coords">--° --°</span>
-            </div>
         </div>
     </div>
 </body>

@@ -5,8 +5,6 @@
     // CONFIGURATION
     // ============================================================
     var GRID_ENDPOINT = '/api/grid';
-    var REVERSE_ENDPOINT = '/api/reverse';
-    var LOCATION_ENDPOINT = '/api/location';
     var CITIES_ENDPOINT = '/api/cities';
 
     var LAYERS = {
@@ -571,7 +569,6 @@
             el.textContent = new Date(state.times[hidx]).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
         }
         // Update hover inspection if visible
-        updateHoverInspection();
     }
 
     function addOverlay(url) {
@@ -885,148 +882,6 @@
         if (note) note.textContent = '';
     }
 
-    // ============================================================
-    // SEARCH
-    // ============================================================
-    var searchAbortController = null;
-    var searchActiveIndex = -1;
-    var searchResults = [];
-
-    function initSearch() {
-        var input = document.getElementById('map-search-input');
-        var dropdown = document.getElementById('map-search-dropdown');
-        var clearBtn = document.getElementById('map-search-clear');
-
-        if (!input || !dropdown) return;
-
-        input.addEventListener('input', debounce(function () {
-            var q = input.value.trim();
-            if (q.length < 2) {
-                dropdown.hidden = true;
-                searchResults = [];
-                return;
-            }
-            performSearch(q);
-        }, 300));
-
-        input.addEventListener('keydown', function (e) {
-            if (!searchResults.length) return;
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                searchActiveIndex = Math.min(searchActiveIndex + 1, searchResults.length - 1);
-                updateSearchActive();
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                searchActiveIndex = Math.max(searchActiveIndex - 1, 0);
-                updateSearchActive();
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (searchActiveIndex >= 0 && searchActiveIndex < searchResults.length) {
-                    selectSearchResult(searchResults[searchActiveIndex]);
-                }
-            } else if (e.key === 'Escape') {
-                dropdown.hidden = true;
-                searchResults = [];
-                input.blur();
-            }
-        });
-
-        clearBtn.addEventListener('click', function () {
-            input.value = '';
-            dropdown.hidden = true;
-            searchResults = [];
-            clearBtn.hidden = true;
-            input.focus();
-        });
-
-        document.addEventListener('click', function (e) {
-            if (!e.target.closest('.map-search')) {
-                dropdown.hidden = true;
-                searchResults = [];
-            }
-        });
-    }
-
-    async function performSearch(query) {
-        var dropdown = document.getElementById('map-search-dropdown');
-        if (searchAbortController) searchAbortController.abort();
-        searchAbortController = new AbortController();
-
-        try {
-            var params = new URLSearchParams();
-            params.set('q', query);
-            params.set('count', '8');
-            var data = await fetchJson(LOCATION_ENDPOINT + '?' + params.toString(), { signal: searchAbortController.signal });
-            searchResults = data.results || [];
-            searchActiveIndex = -1;
-            renderSearchResults(searchResults);
-        } catch (e) {
-            if (e.name !== 'AbortError') {
-                searchResults = [];
-                renderSearchResults([]);
-            }
-        }
-    }
-
-    function renderSearchResults(results) {
-        var dropdown = document.getElementById('map-search-dropdown');
-        var clearBtn = document.getElementById('map-search-clear');
-        if (!dropdown) return;
-
-        if (!results.length) {
-            dropdown.innerHTML = '<div class="map-search-empty">No results found</div>';
-            dropdown.hidden = false;
-            clearBtn.hidden = true;
-            return;
-        }
-
-        clearBtn.hidden = false;
-        dropdown.innerHTML = results.map(function (r, i) {
-            return '<div class="map-search-item' + (i === searchActiveIndex ? ' is-active' : '') + '" data-index="' + i + '">' +
-                '<span class="map-search-item-icon">📍</span>' +
-                '<div class="map-search-item-text">' +
-                '<div class="map-search-item-primary">' + escapeHtml(r.name) + '</div>' +
-                '<div class="map-search-item-secondary">' + escapeHtml(r.country || '') + ' — ' + r.lat.toFixed(2) + '°, ' + r.lon.toFixed(2) + '°</div>' +
-                '</div></div>';
-        }).join('');
-        dropdown.hidden = false;
-
-        dropdown.querySelectorAll('.map-search-item').forEach(function (item) {
-            item.addEventListener('click', function () {
-                var idx = parseInt(item.dataset.index, 10);
-                selectSearchResult(results[idx]);
-            });
-        });
-    }
-
-    function updateSearchActive() {
-        var dropdown = document.getElementById('map-search-dropdown');
-        if (!dropdown) return;
-        dropdown.querySelectorAll('.map-search-item').forEach(function (item, i) {
-            item.classList.toggle('is-active', i === searchActiveIndex);
-        });
-    }
-
-    function selectSearchResult(result) {
-        var input = document.getElementById('map-search-input');
-        var dropdown = document.getElementById('map-search-dropdown');
-        if (input) input.value = result.name;
-        if (dropdown) dropdown.hidden = true;
-        searchResults = [];
-        searchActiveIndex = -1;
-
-        // Add to search history
-        state.searchHistory = state.searchHistory.filter(function (h) { return h.name !== result.name; });
-        state.searchHistory.unshift(result);
-        if (state.searchHistory.length > 10) state.searchHistory.pop();
-
-        // Fly to location
-        map.flyTo([result.lat, result.lon], 10, { duration: 1.5 });
-        setTimeout(function () {
-            updateInfo(result.lat, result.lon);
-        }, 1600);
-    }
-
     function escapeHtml(str) {
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
@@ -1145,7 +1000,7 @@
                 );
             });
         } catch (e) {
-            console.error('[map] failed to load weather stations', e);
+            // Weather stations require a country parameter; skip silently if unavailable.
         }
     }
 
@@ -1257,100 +1112,6 @@
     // UI CONTROLS
     // ============================================================
     function initControls() {
-        // Timeline controls
-        var playBtn = document.getElementById('timeline-play');
-        var stopBtn = document.getElementById('timeline-stop');
-        var prevBtn = document.getElementById('timeline-prev');
-        var nextBtn = document.getElementById('timeline-next');
-        var nowBtn = document.getElementById('timeline-now');
-        var dateInput = document.getElementById('timeline-date');
-        var timeInput = document.getElementById('timeline-time');
-        var slider = document.getElementById('timeline-slider');
-        var speedSelect = document.getElementById('timeline-speed');
-
-        if (playBtn) {
-            playBtn.addEventListener('click', function () {
-                if (state.playing) {
-                    state.playing = false;
-                    stopAutoplay();
-                    playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
-                    playBtn.classList.remove('is-active');
-                } else {
-                    state.playing = true;
-                    if (state.layer && state.layer !== 'wind' && state.frames && state.frames.length > 1) {
-                        startAutoplay();
-                    }
-                    playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
-                    playBtn.classList.add('is-active');
-                }
-            });
-        }
-
-        if (stopBtn) {
-            stopBtn.addEventListener('click', function () {
-                state.playing = false;
-                stopAutoplay();
-                state.frameIndex = state.startIndex || 0;
-                if (playBtn) {
-                    playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
-                    playBtn.classList.remove('is-active');
-                }
-                if (state.layer && state.layer !== 'wind') showFrame(state.frameIndex);
-                updateTimelineSlider();
-            });
-        }
-
-        if (prevBtn) {
-            prevBtn.addEventListener('click', function () {
-                if (state.frameIndex > 0) {
-                    showFrame(state.frameIndex - 1);
-                    updateTimelineSlider();
-                }
-            });
-        }
-
-        if (nextBtn) {
-            nextBtn.addEventListener('click', function () {
-                if (state.times.length && state.frameIndex < state.times.length - 1) {
-                    showFrame(state.frameIndex + 1);
-                    updateTimelineSlider();
-                }
-            });
-        }
-
-        if (nowBtn) {
-            nowBtn.addEventListener('click', function () {
-                state.date = new Date();
-                state.date.setMinutes(0, 0, 0);
-                syncDateTimeInputs();
-                onDateTimeChange();
-            });
-        }
-
-        if (dateInput) dateInput.addEventListener('change', onDateTimeChange);
-        if (timeInput) timeInput.addEventListener('change', onDateTimeChange);
-
-        if (slider) {
-            slider.addEventListener('input', function () {
-                var idx = parseInt(slider.value, 10);
-                if (!isNaN(idx) && state.times.length) {
-                    showFrame(idx);
-                    if (state.times[idx]) state.date = new Date(state.times[idx]);
-                    syncDateTimeInputs();
-                }
-            });
-        }
-
-        if (speedSelect) {
-            speedSelect.addEventListener('change', function () {
-                state.playSpeed = parseInt(speedSelect.value, 10);
-                if (state.playing) {
-                    stopAutoplay();
-                    startAutoplay();
-                }
-            });
-        }
-
         // Model select
         var modelSel = document.getElementById('map-model');
         if (modelSel) {
@@ -1418,35 +1179,6 @@
                 infoPanel.classList.toggle('is-hidden');
             });
         }
-
-        // Map controls
-        var compassBtn = document.getElementById('map-ctrl-compass');
-        var fullscreenBtn = document.getElementById('map-ctrl-fullscreen');
-        var scaleBtn = document.getElementById('map-ctrl-scale');
-
-        if (compassBtn) {
-            compassBtn.addEventListener('click', function () {
-                map.flyTo(map.getCenter(), map.getZoom(), { duration: 0.5 });
-            });
-        }
-
-        if (fullscreenBtn) {
-            fullscreenBtn.addEventListener('click', function () {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(function () {});
-                } else {
-                    document.exitFullscreen().catch(function () {});
-                }
-            });
-        }
-
-        if (scaleBtn) {
-            scaleBtn.addEventListener('click', function () {
-                state.showCoords = !state.showCoords;
-                var coordsEl = document.getElementById('map-ctrl-coords');
-                if (coordsEl) coordsEl.style.display = state.showCoords ? 'block' : 'none';
-            });
-        }
     }
 
     // ============================================================
@@ -1454,7 +1186,6 @@
     // ============================================================
     function init() {
         initMap();
-        initSearch();
         initLocateButton();
         initControls();
         loadWeatherStations();
@@ -1494,28 +1225,6 @@
             if (state.layer === 'wind' && windCanvas) resizeWindCanvas();
             map.invalidateSize();
         }, 200));
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function (e) {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-            if (e.key === ' ' || e.code === 'Space') {
-                e.preventDefault();
-                var playBtn = document.getElementById('timeline-play');
-                if (playBtn) playBtn.click();
-            } else if (e.key === 'ArrowLeft') {
-                var prevBtn = document.getElementById('timeline-prev');
-                if (prevBtn) prevBtn.click();
-            } else if (e.key === 'ArrowRight') {
-                var nextBtn = document.getElementById('timeline-next');
-                if (nextBtn) nextBtn.click();
-            } else if (e.key === 'f' || e.key === 'F') {
-                var fullscreenBtn = document.getElementById('map-ctrl-fullscreen');
-                if (fullscreenBtn) fullscreenBtn.click();
-            } else if (e.key === 'l' || e.key === 'L') {
-                var locateBtn = document.getElementById('map-locate-btn');
-                if (locateBtn) locateBtn.click();
-            }
-        });
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
