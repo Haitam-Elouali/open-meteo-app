@@ -4,10 +4,6 @@
     // ============================================================
     // CONFIGURATION
     // ============================================================
-    var GRID_ENDPOINT = '/api/grid';
-    var DAILY_TEMP_ENDPOINT = '/api/daily-temp';
-    var CITIES_ENDPOINT = '/api/cities';
-
     var LAYERS = {
         temperature:  { label: 'Temperature', var: 'temperature_2m',        unit: '\u00B0C', range: [-20, 45], icon: '🌡️' },
         humidity:     { label: 'Humidity',     var: 'relative_humidity_2m', unit: '%',   range: [0, 100], icon: '💧' },
@@ -161,10 +157,7 @@
     }
 
     async function fetchJson(url, options) {
-        options = options || {};
-        var resp = await fetch(url, options);
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        return resp.json();
+        return WeatherService.fetchJson(url, options);
     }
 
     // ============================================================
@@ -183,8 +176,6 @@
         frameIndex: 0,
         startIndex: 0,
         region: null,
-        activeLayers: {},
-        opacities: {},
         searchHistory: [],
         favorites: [],
         locateMarker: null,
@@ -194,9 +185,6 @@
         showCoords: true
     };
 
-    // Cache
-    var clientCache = new Map();
-    var CACHE_TTL = 15 * 60 * 1000;
     var lastFetchAt = 0;
     var MIN_FETCH_GAP = 2500;
     var fetchAbortController = null;
@@ -381,18 +369,18 @@
 
         var cacheKey = GRID_ENDPOINT + '?' + params.toString();
         var list = null;
-        var cached = clientCache.get(cacheKey);
-        if (cached && cached.expires > Date.now()) {
-            list = cached.data;
+        var cached = CacheService.get('grid', cacheKey);
+        if (cached) {
+            list = cached;
         } else {
             try {
-                var resp = await fetchJson(cacheKey, { signal: fetchAbortController.signal });
+                var resp = await WeatherService.fetchJson(cacheKey, { signal: fetchAbortController.signal });
                 if ((resp.error || !Array.isArray(resp.data)) && params.has('models')) {
                     var p2 = new URLSearchParams(params.toString());
                     p2.delete('models');
                     var cacheKey2 = GRID_ENDPOINT + '?' + p2.toString();
-                    var c2 = clientCache.get(cacheKey2);
-                    resp = (c2 && c2.expires > Date.now()) ? { data: c2.data } : await fetchJson(cacheKey2, { signal: fetchAbortController.signal });
+                    var c2 = CacheService.get('grid', cacheKey2);
+                    resp = c2 ? { data: c2 } : await WeatherService.fetchJson(cacheKey2, { signal: fetchAbortController.signal });
                 }
                 if (resp.error || !Array.isArray(resp.data)) {
                     var fbSource = source === 'archive' ? 'forecast' : 'archive';
@@ -406,8 +394,8 @@
                         fbParams.delete('models');
                     }
                     var fbKey = GRID_ENDPOINT + '?' + fbParams.toString();
-                    var c3 = clientCache.get(fbKey);
-                    resp = (c3 && c3.expires > Date.now()) ? { data: c3.data } : await fetchJson(fbKey, { signal: fetchAbortController.signal });
+                    var c3 = CacheService.get('grid', fbKey);
+                    resp = c3 ? { data: c3 } : await WeatherService.fetchJson(fbKey, { signal: fetchAbortController.signal });
                     if (!resp.error && Array.isArray(resp.data) && note) {
                         note.textContent = source === 'archive'
                             ? 'Archive limited — showing forecast data.'
@@ -416,7 +404,7 @@
                 }
                 if (resp.error || !Array.isArray(resp.data)) throw new Error(resp.error || 'empty');
                 list = resp.data;
-                clientCache.set(cacheKey, { expires: Date.now() + CACHE_TTL, data: list });
+                CacheService.set('grid', cacheKey, list, 15 * 60 * 1000);
             } catch (e) {
                 if (e.name === 'AbortError') return;
                 if (note) note.textContent = 'Failed to load data (network or rate limit). Try again shortly.';
@@ -471,6 +459,10 @@
         state.frames = null;
         stopWindAnimation();
         try { map.setMaxBounds(undefined); } catch (e) {}
+
+        if (window.TileManager) {
+            window.TileManager.clearAll();
+        }
     }
 
     function buildFrameCanvas(hidx) {
@@ -774,56 +766,16 @@
     // ============================================================
     // DAILY TEMPERATURE (current date max/min)
     // ============================================================
-    var dailyTempCache = null;
-    var dailyTempDate = null;
-
-    async function updateDailyTemp(lat, lng) {
-        var today = new Date().toISOString().slice(0, 10);
-        if (dailyTempDate === today && dailyTempCache) {
-            applyDailyTemp(dailyTempCache);
-            return;
-        }
-
-        try {
-            var resp = await fetchJson(DAILY_TEMP_ENDPOINT + '?lat=' + lat + '&lon=' + lng);
-            if (resp && !resp.error) {
-                dailyTempCache = resp;
-                dailyTempDate = today;
-                applyDailyTemp(resp);
-            }
-        } catch (e) {
-            console.error('[map] daily temp fetch failed', e);
-        }
-    }
-
-    function applyDailyTemp(data) {
-        var maxEl = document.getElementById('info-temp-max');
-        var minEl = document.getElementById('info-temp-min');
-        if (maxEl && data.tempMax != null) maxEl.textContent = Math.round(temperature(data.tempMax)) + '°';
-        if (minEl && data.tempMin != null) minEl.textContent = Math.round(temperature(data.tempMin)) + '°';
-    }
+    // Delegated to PopupManager
 
     // ============================================================
     // WEATHER INFO POPUP
     // ============================================================
     async function updateInfo(lat, lng) {
-        if (!infoMarker) {
-            infoMarker = L.circleMarker([lat, lng], {
-                radius: 6,
-                color: '#fff',
-                fillColor: '#3b82f6',
-                fillOpacity: 1,
-                weight: 2,
-                opacity: 0.9
-            }).addTo(map);
-        } else {
-            infoMarker.setLatLng([lat, lng]);
-        }
+        if (!window.PopupManager) return;
 
-        var grid = document.getElementById('map-info-grid');
-        var hint = document.getElementById('map-info-hint');
-        if (grid) grid.hidden = true;
-        if (hint) { hint.hidden = false; hint.textContent = 'Loading\u2026'; }
+        PopupManager.showMarker(lat, lng);
+        PopupManager.setLoading(true);
 
         var target = state.date;
         var isPast = target < new Date(Date.now() - 3600 * 1000);
@@ -860,34 +812,14 @@
                 fb.delete('models');
                 var r2 = await fetchJson(GRID_ENDPOINT + '?' + fb.toString());
                 point = Array.isArray(r2.data) ? r2.data[0] : r2.data;
-                if (hint) hint.textContent = 'Forecast limited — showing latest archived data.';
             }
             var hourly = point ? point.hourly || {} : {};
             var times = hourly.time || [];
             var idx = findHourIndex(times, target);
-            var set = function (id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
-            var hv = function (key) { return hourly[key] && hourly[key][idx] != null ? hourly[key][idx] : null; };
-
-            set('info-temp', hv('temperature_2m') != null ? Math.round(temperature(hv('temperature_2m'))) + '°' : '--');
-            set('info-feels', hv('apparent_temperature') != null ? Math.round(temperature(hv('apparent_temperature'))) + '°' : '--');
-            set('info-humidity', hv('relative_humidity_2m') != null ? Math.round(hv('relative_humidity_2m')) + '%' : '--');
-            set('info-pressure', hv('pressure_msl') != null ? Math.round(hv('pressure_msl')) + ' hPa' : '--');
-            set('info-wind', hv('wind_speed_10m') != null ? Math.round(windSpeed(hv('wind_speed_10m'))) + ' ' + windLabel() : '--');
-            set('info-wind-dir', hv('wind_direction_10m') != null ? Math.round(hv('wind_direction_10m')) + '°' : '--');
-            set('info-visibility', hv('visibility') != null ? Math.round(hv('visibility')) + ' m' : '--');
-            set('info-uv', hv('uv_index') != null ? Math.round(hv('uv_index')) : '--');
-            set('info-clouds', hv('cloud_cover') != null ? Math.round(hv('cloud_cover')) + '%' : '--');
-            set('info-rain', hv('precipitation') != null ? Math.round(hv('precipitation')) + ' mm' : '--');
-
-            if (grid) grid.hidden = false;
-            if (hint) hint.hidden = true;
-            var timeEl = document.getElementById('map-info-time');
-            if (timeEl && times[idx]) timeEl.textContent = new Date(times[idx]).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-
-            // Fetch daily max/min for the same location
-            updateDailyTemp(lat, lng);
+            PopupManager.renderHourly(hourly, times, idx);
+            PopupManager.updateDailyTemp(lat, lng);
         } catch (e) {
-            if (hint) hint.textContent = 'Unable to load weather for this location.';
+            PopupManager.setLoading(false);
         }
     }
 
@@ -1105,7 +1037,10 @@
                 updateLegend();
                 fetchGrid();
 
-                // Update tile manager layer visibility
+                // Sync with LayerManager and TileManager
+                if (window.LayerManager) {
+                    window.LayerManager.setLayer(state.layer);
+                }
                 if (window.TileManager) {
                     Object.keys(window.MapLayers).forEach(function (key) {
                         window.TileManager.setLayerVisible(key, key === state.layer);
@@ -1123,6 +1058,12 @@
                 if (layerOpacityVal) layerOpacityVal.textContent = val + '%';
                 if (overlayLayer) {
                     overlayLayer.setOpacity(state.opacities[state.layer]);
+                }
+                if (window.LayerManager) {
+                    window.LayerManager.setOpacity(state.layer, val / 100);
+                }
+                if (window.TileManager) {
+                    window.TileManager.updateOpacity(state.layer, val / 100);
                 }
             });
         }
@@ -1181,9 +1122,14 @@
         initMap();
         initControls();
 
-        // Initialize tile manager for viewport-based loading
+        // Initialize modular services
+        if (window.CacheService) CacheService.startAutoPrune();
+        if (window.LayerManager) LayerManager.init('temperature');
+        if (window.PopupManager) PopupManager.init(map);
+        if (window.SearchService) SearchService.init();
         if (window.TileManager) {
-            window.TileManager.init(map);
+            TileManager.init(map);
+            TileManager.setLayerVisible('temperature', true);
         }
 
         // Set default date
