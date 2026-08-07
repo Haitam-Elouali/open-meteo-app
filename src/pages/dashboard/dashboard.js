@@ -5611,7 +5611,7 @@
     const table = document.createElement('table');
     table.className = 'cities-table';
     const thead = document.createElement('thead');
-    thead.innerHTML = `<tr><th data-i18n="dashboard.citiesTableCity">City</th><th data-i18n="dashboard.citiesTableMaxTemp">Max Temperature</th></tr>`;
+    thead.innerHTML = `<tr><th data-i18n="dashboard.citiesTableCity">City</th><th data-i18n="dashboard.citiesTableMinTemp">Min Temperature</th><th data-i18n="dashboard.citiesTableMaxTemp">Max Temperature</th></tr>`;
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     cities.forEach((c) => {
@@ -5621,10 +5621,13 @@
       tr.style.color = 'white';
       const tdName = document.createElement('td');
       tdName.textContent = c.name;
-      const tdTemp = document.createElement('td');
-      tdTemp.textContent = c.maxTemp != null ? `${U.temp(c.maxTemp)}°` : '--';
+      const tdMin = document.createElement('td');
+      tdMin.textContent = c.minTemp != null ? `${U.temp(c.minTemp)}°` : '--';
+      const tdMax = document.createElement('td');
+      tdMax.textContent = c.maxTemp != null ? `${U.temp(c.maxTemp)}°` : '--';
       tr.appendChild(tdName);
-      tr.appendChild(tdTemp);
+      tr.appendChild(tdMin);
+      tr.appendChild(tdMax);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -5712,22 +5715,26 @@
             const weatherData = await weatherR.json();
             console.log('[dashboard] batch weather data keys', Object.keys(weatherData?.data || {}), 'dailyKeys', Object.keys(weatherData?.data?.daily || {}));
             const dailyMax = weatherData?.data?.daily?.temperature_2m_max || [];
+            const dailyMin = weatherData?.data?.daily?.temperature_2m_min || [];
             const dailyTime = weatherData?.data?.daily?.time || [];
-            console.log('[dashboard] batch dailyTime', dailyTime, 'dailyMax', dailyMax);
+            console.log('[dashboard] batch dailyTime', dailyTime, 'dailyMax', dailyMax, 'dailyMin', dailyMin);
             const currents = Object.keys(weatherData?.data || {})
               .filter((k) => !isNaN(Number(k)))
               .sort((a, b) => Number(a) - Number(b))
               .map((k) => weatherData.data[k]?.current)
               .filter(Boolean);
-            console.log('[dashboard] batch currents count', currents.length, 'dailyMax count', dailyMax.length, 'expected', countryCities.length);
+            console.log('[dashboard] batch currents count', currents.length, 'dailyMax count', dailyMax.length, 'dailyMin count', dailyMin.length, 'expected', countryCities.length);
             cities = countryCities.map((c, i) => {
-              const daily = dailyMax[i];
+              const dailyMaxVal = dailyMax[i];
+              const dailyMinVal = dailyMin[i];
               const currentTemp = currents[i]?.temperature_2m;
-              const maxTemp = daily != null ? Math.round(daily) : (currentTemp != null ? Math.round(currentTemp) : null);
-              console.log('[dashboard] city', c.name, 'dailyMax', daily, 'currentTemp', currentTemp, 'final maxTemp', maxTemp);
+              const maxTemp = dailyMaxVal != null ? Math.round(dailyMaxVal) : (currentTemp != null ? Math.round(currentTemp) : null);
+              const minTemp = dailyMinVal != null ? Math.round(dailyMinVal) : null;
+              console.log('[dashboard] city', c.name, 'dailyMax', dailyMaxVal, 'dailyMin', dailyMinVal, 'currentTemp', currentTemp, 'final maxTemp', maxTemp, 'minTemp', minTemp);
               return {
                 name: c.name,
                 maxTemp: maxTemp,
+                minTemp: minTemp,
               };
             }).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
             console.log('[dashboard] cities from batch', cities.length, 'first', cities[0]);
@@ -5759,14 +5766,18 @@
               .map((k) => weatherData.data[k]?.current)
               .filter(Boolean);
             const dailyMax = weatherData?.data?.daily?.temperature_2m_max || [];
+            const dailyMin = weatherData?.data?.daily?.temperature_2m_min || [];
             cities = fbCities.map((c, i) => {
-              const daily = dailyMax[i];
+              const dailyMaxVal = dailyMax[i];
+              const dailyMinVal = dailyMin[i];
               const currentTemp = currents[i]?.temperature_2m;
-              const maxTemp = daily != null ? Math.round(daily) : (currentTemp != null ? Math.round(currentTemp) : null);
-              console.log('[dashboard] fallback city', c.name, 'dailyMax', daily, 'currentTemp', currentTemp, 'final maxTemp', maxTemp);
+              const maxTemp = dailyMaxVal != null ? Math.round(dailyMaxVal) : (currentTemp != null ? Math.round(currentTemp) : null);
+              const minTemp = dailyMinVal != null ? Math.round(dailyMinVal) : null;
+              console.log('[dashboard] fallback city', c.name, 'dailyMax', dailyMaxVal, 'dailyMin', dailyMinVal, 'currentTemp', currentTemp, 'final maxTemp', maxTemp, 'minTemp', minTemp);
               return {
                 name: c.name,
                 maxTemp: maxTemp,
+                minTemp: minTemp,
               };
             }).sort((a, b) => (b.maxTemp ?? -Infinity) - (a.maxTemp ?? -Infinity));
             console.log('[dashboard] fallback cities from', fbCountry, cities.length);

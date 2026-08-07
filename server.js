@@ -78,6 +78,10 @@ app.get('/settings', (req, res) => {
   res.redirect('/');
 });
 
+app.get('/map', (req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'pages', 'map', 'index.html'));
+});
+
 // Proxy open-meteo
 app.get('/api/weather', async (req, res) => {
   try {
@@ -191,6 +195,7 @@ app.get('/api/archive', async (req, res) => {
     url.searchParams.append('hourly', 'surface_pressure');
     url.searchParams.append('hourly', 'cloud_cover');
     url.searchParams.append('hourly', 'uv_index');
+    url.searchParams.append('hourly', 'shortwave_radiation');
 
     const data = await cachedFetchJson(url.toString());
     res.json({ data });
@@ -320,6 +325,89 @@ app.get('/api/forecast', async (req, res) => {
     const data = await cachedFetchJson(url.toString());
 
     res.json({ data, horizon: requested, pastDays, forecastDays });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Generic, cached proxy used by the Weather Map overlays. Forwards the supplied
+// query parameters to Open-Meteo (forecast or archive) and returns the JSON.
+// Going through the server keeps requests same-origin (no browser CORS issues),
+// reuses the in-memory cache (so identical grid requests are not re-fetched),
+// and lets the client stay generic about which variables/models it asks for.
+app.get('/api/grid', async (req, res) => {
+  try {
+    const source = String(req.query.source || 'forecast').toLowerCase();
+    const base = source === 'archive'
+      ? 'https://archive-api.open-meteo.com/v1/archive'
+      : 'https://api.open-meteo.com/v1/forecast';
+    const url = new URL(base);
+    Object.entries(req.query).forEach(([k, v]) => {
+      if (k === 'source') return;
+      if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, x));
+      else url.searchParams.append(k, v);
+    });
+    if (!url.searchParams.get('timezone')) url.searchParams.set('timezone', 'auto');
+
+    const data = await cachedFetchJson(url.toString());
+    // Open-Meteo returns an array when multiple coordinates are requested.
+    // It can also return an error object (e.g. rate limited) as the first/only
+    // element — surface that as a 502 so the client can react.
+    const list = Array.isArray(data) ? data : [data];
+    const first = list[0] || {};
+    if (!list.length || first.error || !first.hourly) {
+      res.set('Access-Control-Allow-Origin', '*');
+      return res.status(502).json({ error: first.reason || first.error || 'No data from upstream' });
+    }
+    res.set('Access-Control-Allow-Origin', '*');
+    res.json({ source, data: list });
+  } catch (e) {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Daily temperature summary for the current date only.
+// Returns max/min temperature for the requested location, cached per day.
+app.get('/api/daily-temp', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return res.status(400).json({ error: 'lat and lon are required' });
+    }
+
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', String(lat));
+    url.searchParams.set('longitude', String(lon));
+    url.searchParams.set('timezone', 'auto');
+    url.searchParams.set('forecast_days', '1');
+
+    url.searchParams.append('daily', 'temperature_2m_max');
+    url.searchParams.append('daily', 'temperature_2m_min');
+    url.searchParams.append('daily', 'weather_code');
+    url.searchParams.append('daily', 'precipitation_sum');
+
+    const data = await cachedFetchJson(url.toString());
+    const daily = data?.daily || {};
+    const todayIndex = 0;
+    const tempMax = daily.temperature_2m_max?.[todayIndex];
+    const tempMin = daily.temperature_2m_min?.[todayIndex];
+    const weatherCode = daily.weather_code?.[todayIndex];
+    const precipSum = daily.precipitation_sum?.[todayIndex];
+
+    if (tempMax == null && tempMin == null) {
+      return res.status(502).json({ error: 'No daily temperature data from upstream' });
+    }
+
+    res.json({
+      date: daily.time?.[todayIndex],
+      tempMax: tempMax ?? null,
+      tempMin: tempMin ?? null,
+      weatherCode: weatherCode ?? null,
+      precipSum: precipSum ?? null
+    });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
@@ -591,7 +679,7 @@ app.get('/api/cities-weather', async (req, res) => {
           }
         }
         if (!loc || isBlockedCountry(loc.country)) {
-          return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null };
+          return { name: city, maxTemp: null, minTemp: null, error: 'not found', lat: null, lon: null };
         }
 
         const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
@@ -599,83 +687,36 @@ app.get('/api/cities-weather', async (req, res) => {
         forecastUrl.searchParams.set('longitude', String(loc.longitude));
         forecastUrl.searchParams.set('timezone', 'auto');
         forecastUrl.searchParams.set('forecast_days', '1');
-        forecastUrl.searchParams.append('hourly', 'temperature_2m');
+        forecastUrl.searchParams.append('daily', 'temperature_2m_min');
+        forecastUrl.searchParams.append('daily', 'temperature_2m_max');
 
         let maxTemp = null;
+        let minTemp = null;
         try {
           const forecast = await cachedFetchJson(forecastUrl.toString());
-          const times = forecast?.hourly?.time || [];
-          const temps = forecast?.hourly?.temperature_2m || [];
-
-
-          const now = new Date();
-          const n = Math.min(times.length, temps.length, 24);
-
-          // Parse hour from each time string (API returns times in location timezone).
-          // Find the latest past hour to check if it's >= 18:00.
-          let latestHour = -1;
-          for (let i = 0; i < n; i++) {
-            const raw = String(times[i] || '');
-            const timePart = raw.split('T')[1] || '';
-            const hhmm = timePart.split('+')[0].split('Z')[0];
-            const parts = hhmm.split(':');
-            const hour = Number(parts[0]);
-            if (Number.isFinite(hour)) {
-              const t = new Date(raw);
-              if (!isNaN(t) && t <= now) {
-                if (hour > latestHour) latestHour = hour;
-              }
-            }
+          const daily = forecast?.daily || {};
+          const minVals = daily.temperature_2m_min || [];
+          const maxVals = daily.temperature_2m_max || [];
+          if (minVals.length > 0) {
+            minTemp = Number.isFinite(minVals[0]) ? Math.round(minVals[0]) : null;
           }
-
-          if (latestHour >= 18) {
-            let best = null;
-            for (let i = 0; i < n; i++) {
-              const v = temps[i];
-              if (Number.isFinite(v)) {
-                const t = new Date(times[i]);
-                if (!isNaN(t) && t <= now) {
-                  if (best === null || v > best) best = v;
-                }
-              }
-            }
-            maxTemp = best !== null ? Math.round(best) : null;
+          if (maxVals.length > 0) {
+            maxTemp = Number.isFinite(maxVals[0]) ? Math.round(maxVals[0]) : null;
           }
         } catch (e) {
           console.error('[cities-weather] forecast fetch failed for', city, e);
-        }
-
-        if (maxTemp === null) {
-          const yesterday = new Date(Date.now() - 86400000);
-          const yyyy = String(yesterday.getFullYear());
-          const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
-          const dd = String(yesterday.getDate()).padStart(2, '0');
-          const archiveUrl = new URL('https://archive-api.open-meteo.com/v1/archive');
-          archiveUrl.searchParams.set('latitude', String(loc.latitude));
-          archiveUrl.searchParams.set('longitude', String(loc.longitude));
-          archiveUrl.searchParams.set('timezone', 'auto');
-          archiveUrl.searchParams.set('start_date', `${yyyy}-${mm}-${dd}`);
-          archiveUrl.searchParams.set('end_date', `${yyyy}-${mm}-${dd}`);
-          archiveUrl.searchParams.append('daily', 'temperature_2m_max');
-
-          try {
-            const archive = await cachedFetchJson(archiveUrl.toString());
-            const observed = archive?.daily?.temperature_2m_max?.[0];
-            maxTemp = Number.isFinite(observed) ? Math.round(observed) : null;
-          } catch (e) {
-            console.error('[cities-weather] archive fetch failed for', city, e);
-          }
         }
 
         return {
           name: city,
           lat: loc.latitude,
           lon: loc.longitude,
-          maxTemp: Number.isFinite(maxTemp) ? Math.round(maxTemp) : null,
+          maxTemp: Number.isFinite(maxTemp) ? maxTemp : null,
+          minTemp: Number.isFinite(minTemp) ? minTemp : null,
         };
       } catch (e) {
         console.error('[cities-weather] error for', city, e);
-        return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null };
+        return { name: city, maxTemp: null, minTemp: null, error: String(e?.message || e), lat: null, lon: null };
       }
     });
 

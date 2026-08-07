@@ -12,38 +12,14 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     padding: 10px 24px;
     gap: 12px;
-    /* Keep the header order LTR even when the document is RTL (Arabic) */
     direction: ltr;
-}
-
-@media (max-width: 640px) {
-    .header {
-        padding: 10px 14px;
-    }
-
-    .header__nav {
-        position: static;
-        left: auto;
-        transform: none;
-        order: 3;
-        width: 100%;
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-
-    .header__site-name {
-        display: none;
-    }
-
-    .header__right-controls {
-        margin-left: auto;
-    }
 }
 
 .header__left {
     display: flex;
     align-items: center;
     gap: 12px;
+    order: 1;
 }
 
 .header__logo {
@@ -95,49 +71,7 @@
     align-items: center;
     gap: 10px;
     margin-left: auto;
-}
-
-.header__lang-select {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 10px;
-    padding: 4px 8px;
-    cursor: pointer;
-    color: white;
-    font-size: 14px;
-    outline: none;
-}
-
-.header__lang-select option {
-    background-color: #0f172a;
-    color: white;
-}
-
-.header__lang-text {
-    font-size: 14px;
-    line-height: 1;
-}
-
-.header__geo-button {
-    background-color: rgba(0, 0, 0, 0);
-    border: none;
-    width: 32px;
-    height: 32px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.header__geo-button img {
-    width: 28px;
-    height: 28px;
-}
-
-/* The header order stays LTR for Arabic, but the GPS locator arrow is
-   directional, so mirror it under RTL so it still "points" correctly. */
-[dir="rtl"] .header__geo-button img {
-    transform: scaleX(-1);
+    order: 3;
 }
 
 .header__settings-button {
@@ -161,6 +95,30 @@
 .header__settings-button svg {
     width: 20px;
     height: 20px;
+}
+
+.header__geo-button {
+    background-color: rgba(0, 0, 0, 0);
+    border: none;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header__geo-button img {
+    width: 28px;
+    height: 28px;
+}
+
+[dir="rtl"] .header__geo-button img {
+    transform: scaleX(-1);
+}
+
+.header__mobile-center {
+    display: none;
 }
 
 .header__hamburger {
@@ -190,65 +148,105 @@
     transition: transform 0.3s, opacity 0.3s;
 }
 
-.header.is-nav-open .header__hamburger span:nth-child(1) {
-    transform: translateY(7px) rotate(45deg);
+.header__mobile-menu {
+    display: none;
 }
 
-.header.is-nav-open .header__hamburger span:nth-child(2) {
-    opacity: 0;
-}
-
-.header.is-nav-open .header__hamburger span:nth-child(3) {
-    transform: translateY(-7px) rotate(-45deg);
+.header__mobile-nav-link {
+    display: none;
 }
 
 @media (max-width: 640px) {
     .header {
-        padding: 10px 14px;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .header__mobile-center {
+        display: flex;
+        position: absolute;
+        top: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .header__mobile-center .header__logo {
+        width: 36px;
+        height: 36px;
+    }
+
+    .header__mobile-center .header__site-name {
+        display: block;
+        font-size: 16px;
+        font-weight: 200;
+        color: white;
+    }
+
+    .header__left {
+        display: none;
     }
 
     .header__hamburger {
         display: flex;
     }
 
+    .header__hamburger span {
+        display: block;
+        width: 22px;
+        height: 2px;
+        background: white;
+        border-radius: 2px;
+        transition: transform 0.3s, opacity 0.3s;
+    }
+
     .header__nav {
+        display: none;
         position: static;
         left: auto;
         transform: none;
-        order: 3;
-        width: 100%;
-        justify-content: flex-start;
-        flex-wrap: wrap;
-        display: none;
-        flex-direction: column;
-        gap: 4px;
-        padding-top: 8px;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-        max-height: 0;
-        overflow: hidden;
-        opacity: 0;
-        transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.3s ease;
     }
 
-    .header__nav-link {
-        padding: 10px 12px;
-        border-radius: 8px;
-        width: 100%;
-        text-align: center;
+    .header.is-menu-open .header__nav {
+        display: flex;
+        position: absolute;
+        top: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 12px;
+        padding: 12px 16px;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 90vw;
         box-sizing: border-box;
     }
 
-    .header.is-nav-open .header__nav {
+    .header.is-menu-open .header__nav-link {
         display: flex;
-        max-height: 300px;
-        opacity: 1;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+        white-space: nowrap;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
     }
 
-    .header__site-name {
-        display: none;
+    .header.is-menu-open .header__nav-link:hover,
+    .header.is-menu-open .header__nav-link--active {
+        color: white;
+        background: rgba(255, 255, 255, 0.12);
     }
 
     .header__right-controls {
-        margin-left: auto;
+        display: none;
     }
 }

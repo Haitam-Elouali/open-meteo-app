@@ -21,9 +21,6 @@
     box-shadow: 0 12px 50px rgba(0, 0, 0, 0.2);
     animation: cardFade 0.5s ease both;
 }
-    box-shadow: 0 12px 50px rgba(0, 0, 0, 0.2);
-    animation: cardFade 0.5s ease both;
-}
 
 @keyframes cardFade {
     from { opacity: 0; transform: translateY(12px); }
@@ -49,8 +46,9 @@
 .db-location { grid-column: 1 / -1; align-self: start; display: flex; align-items: center; gap: 8px; font-size: 16px; color: rgba(255,255,255,0.85); }
 .db-loc-pin { display: inline-flex; align-items: center; opacity: 0.8; }
 .db-loc-text { font-weight: 400; }
-/* Wider cards (2 per row on desktop) — width grows, height is unchanged. */
-.db-widget { grid-column: span 6; }
+/* Wider cards (2 per row on desktop). Cards stretch to the same height so the
+   table/chart inside can fill the available space instead of using a fixed box. */
+.db-widget { grid-column: span 6; display: flex; flex-direction: column; min-height: 460px; }
 
 @media (max-width: 1100px) {
     .db-widget { grid-column: span 12; }
@@ -320,8 +318,11 @@
 /* ---------- Charts ---------- */
 .chart-container {
     width: 100%;
-    height: 380px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 320px;
     position: relative;
+    overflow: hidden;
 }
 
 .chart-container canvas {
@@ -366,8 +367,10 @@
 }
 
 #cities-table {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(100vh - 300px);
     overflow-y: auto;
-    max-height: 320px;
 }
 
 .dashboard-tooltip {

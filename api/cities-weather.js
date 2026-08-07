@@ -137,13 +137,18 @@ async function handler(req, res) {
         forecastUrl.searchParams.set('longitude', String(loc.longitude));
         forecastUrl.searchParams.set('timezone', 'auto');
         forecastUrl.searchParams.set('forecast_days', '1');
+        forecastUrl.searchParams.append('daily', 'temperature_2m_min');
+        forecastUrl.searchParams.append('daily', 'temperature_2m_max');
         forecastUrl.searchParams.append('hourly', 'temperature_2m');
 
         let maxTemp = null;
+        let minTemp = null;
         try {
           const forecast = await cachedFetchJson(forecastUrl.toString());
           const times = forecast?.hourly?.time || [];
           const temps = forecast?.hourly?.temperature_2m || [];
+          const dailyMin = forecast?.daily?.temperature_2m_min || [];
+          const dailyMax = forecast?.daily?.temperature_2m_max || [];
 
           const now = new Date();
           const n = Math.min(times.length, temps.length, 24);
@@ -178,6 +183,14 @@ async function handler(req, res) {
             }
             maxTemp = best !== null ? Math.round(best) : null;
           }
+
+          // Use daily min/max from API if available
+          if (dailyMax.length > 0 && Number.isFinite(dailyMax[0])) {
+            maxTemp = Math.round(dailyMax[0]);
+          }
+          if (dailyMin.length > 0 && Number.isFinite(dailyMin[0])) {
+            minTemp = Math.round(dailyMin[0]);
+          }
         } catch (e) {
           console.error('[cities-weather] forecast fetch failed for', city, e);
         }
@@ -193,12 +206,15 @@ async function handler(req, res) {
           archiveUrl.searchParams.set('timezone', 'auto');
           archiveUrl.searchParams.set('start_date', `${yyyy}-${mm}-${dd}`);
           archiveUrl.searchParams.set('end_date', `${yyyy}-${mm}-${dd}`);
+          archiveUrl.searchParams.append('daily', 'temperature_2m_min');
           archiveUrl.searchParams.append('daily', 'temperature_2m_max');
 
           try {
             const archive = await cachedFetchJson(archiveUrl.toString());
-            const observed = archive?.daily?.temperature_2m_max?.[0];
-            maxTemp = Number.isFinite(observed) ? Math.round(observed) : null;
+            const observedMax = archive?.daily?.temperature_2m_max?.[0];
+            const observedMin = archive?.daily?.temperature_2m_min?.[0];
+            maxTemp = Number.isFinite(observedMax) ? Math.round(observedMax) : null;
+            minTemp = Number.isFinite(observedMin) ? Math.round(observedMin) : null;
           } catch (e) {
             console.error('[cities-weather] archive fetch failed for', city, e);
           }
@@ -209,6 +225,7 @@ async function handler(req, res) {
           lat: loc.latitude,
           lon: loc.longitude,
           maxTemp: Number.isFinite(maxTemp) ? Math.round(maxTemp) : null,
+          minTemp: Number.isFinite(minTemp) ? Math.round(minTemp) : null,
         };
       } catch (e) {
         console.error('[cities-weather] error for', city, e);
