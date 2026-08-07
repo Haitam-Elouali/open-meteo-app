@@ -367,6 +367,52 @@ app.get('/api/grid', async (req, res) => {
   }
 });
 
+// Daily temperature summary for the current date only.
+// Returns max/min temperature for the requested location, cached per day.
+app.get('/api/daily-temp', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lon = Number(req.query.lon);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return res.status(400).json({ error: 'lat and lon are required' });
+    }
+
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', String(lat));
+    url.searchParams.set('longitude', String(lon));
+    url.searchParams.set('timezone', 'auto');
+    url.searchParams.set('forecast_days', '1');
+
+    url.searchParams.append('daily', 'temperature_2m_max');
+    url.searchParams.append('daily', 'temperature_2m_min');
+    url.searchParams.append('daily', 'weather_code');
+    url.searchParams.append('daily', 'precipitation_sum');
+
+    const data = await cachedFetchJson(url.toString());
+    const daily = data?.daily || {};
+    const todayIndex = 0;
+    const tempMax = daily.temperature_2m_max?.[todayIndex];
+    const tempMin = daily.temperature_2m_min?.[todayIndex];
+    const weatherCode = daily.weather_code?.[todayIndex];
+    const precipSum = daily.precipitation_sum?.[todayIndex];
+
+    if (tempMax == null && tempMin == null) {
+      return res.status(502).json({ error: 'No daily temperature data from upstream' });
+    }
+
+    res.json({
+      date: daily.time?.[todayIndex],
+      tempMax: tempMax ?? null,
+      tempMin: tempMin ?? null,
+      weatherCode: weatherCode ?? null,
+      precipSum: precipSum ?? null
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
 // Additional endpoint: Open-Meteo Air Quality API (AQI, pollutants, pollen).
 // Demonstrates optional params: `domains` (auto / cams_europe / cams_global)
 // and `pollen` for daily pollen forecasts.

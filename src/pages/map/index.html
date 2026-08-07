@@ -19,6 +19,7 @@
     <script defer src="/components/settings-modal.js"></script>
     <script defer src="/components/location-modal.js"></script>
     <script defer src="/components/capitals-ticker.js?v=2"></script>
+    <script defer src="/pages/map/tile-manager.js"></script>
     <script defer src="/pages/map/map.js"></script>
     <title>Weather Map - Open Arsad</title>
 </head>
@@ -204,6 +205,14 @@
                     <div class="map-info-card">
                         <span class="map-info-label" data-i18n="map.info.feelsLike">Feels Like</span>
                         <span class="map-info-value" id="info-feels">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label">Today's High</span>
+                        <span class="map-info-value" id="info-temp-max">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label">Today's Low</span>
+                        <span class="map-info-value" id="info-temp-min">--</span>
                     </div>
                     <div class="map-info-card">
                         <span class="map-info-label" data-i18n="map.info.humidity">Humidity</span>

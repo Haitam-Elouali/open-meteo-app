@@ -5,6 +5,7 @@
     // CONFIGURATION
     // ============================================================
     var GRID_ENDPOINT = '/api/grid';
+    var DAILY_TEMP_ENDPOINT = '/api/daily-temp';
     var CITIES_ENDPOINT = '/api/cities';
 
     var LAYERS = {
@@ -771,6 +772,38 @@
     }
 
     // ============================================================
+    // DAILY TEMPERATURE (current date max/min)
+    // ============================================================
+    var dailyTempCache = null;
+    var dailyTempDate = null;
+
+    async function updateDailyTemp(lat, lng) {
+        var today = new Date().toISOString().slice(0, 10);
+        if (dailyTempDate === today && dailyTempCache) {
+            applyDailyTemp(dailyTempCache);
+            return;
+        }
+
+        try {
+            var resp = await fetchJson(DAILY_TEMP_ENDPOINT + '?lat=' + lat + '&lon=' + lng);
+            if (resp && !resp.error) {
+                dailyTempCache = resp;
+                dailyTempDate = today;
+                applyDailyTemp(resp);
+            }
+        } catch (e) {
+            console.error('[map] daily temp fetch failed', e);
+        }
+    }
+
+    function applyDailyTemp(data) {
+        var maxEl = document.getElementById('info-temp-max');
+        var minEl = document.getElementById('info-temp-min');
+        if (maxEl && data.tempMax != null) maxEl.textContent = Math.round(temperature(data.tempMax)) + '°';
+        if (minEl && data.tempMin != null) minEl.textContent = Math.round(temperature(data.tempMin)) + '°';
+    }
+
+    // ============================================================
     // WEATHER INFO POPUP
     // ============================================================
     async function updateInfo(lat, lng) {
@@ -850,6 +883,9 @@
             if (hint) hint.hidden = true;
             var timeEl = document.getElementById('map-info-time');
             if (timeEl && times[idx]) timeEl.textContent = new Date(times[idx]).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+            // Fetch daily max/min for the same location
+            updateDailyTemp(lat, lng);
         } catch (e) {
             if (hint) hint.textContent = 'Unable to load weather for this location.';
         }
@@ -1068,6 +1104,13 @@
                 clearLayers();
                 updateLegend();
                 fetchGrid();
+
+                // Update tile manager layer visibility
+                if (window.TileManager) {
+                    Object.keys(window.MapLayers).forEach(function (key) {
+                        window.TileManager.setLayerVisible(key, key === state.layer);
+                    });
+                }
             });
         }
 
@@ -1137,6 +1180,11 @@
     function init() {
         initMap();
         initControls();
+
+        // Initialize tile manager for viewport-based loading
+        if (window.TileManager) {
+            window.TileManager.init(map);
+        }
 
         // Set default date
         var def = new Date(Date.now() - 24 * 3600 * 1000);
