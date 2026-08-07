@@ -81,6 +81,23 @@
     const windMax = daily.wind_speed_10m_max || [];
     const todayStr = new Date().toDateString();
 
+    const hourly = forecastData.hourly || {};
+    const hourlyTimes = hourly.time || [];
+    const hourlyTemps = hourly.temperature_2m || [];
+
+    const hourlyByDate = new Map();
+    for (let j = 0; j < hourlyTimes.length; j++) {
+      const hTime = hourlyTimes[j];
+      const hTemp = hourlyTemps[j];
+      if (hTime == null || hTemp == null || !Number.isFinite(hTemp)) continue;
+      const parts = String(hTime).split('T');
+      const datePart = parts[0];
+      const hour = parts[1] ? parseInt(parts[1].split(':')[0], 10) : -1;
+      if (!datePart || isNaN(hour)) continue;
+      if (!hourlyByDate.has(datePart)) hourlyByDate.set(datePart, []);
+      hourlyByDate.get(datePart).push({ hour, temp: hTemp });
+    }
+
     const cols = times.map((t, i) => {
       const id = iconId(codes[i]);
       const max = Number.isFinite(Number(maxTemps[i])) ? Math.round(U.temp(maxTemps[i])) : '—';
@@ -88,6 +105,45 @@
       const precip = Number.isFinite(Number(precipProbs[i])) ? Math.round(precipProbs[i]) : '—';
       const wind = Number.isFinite(Number(windMax[i])) ? Math.round(U.wind(windMax[i])) : '—';
       const isToday = new Date(t + 'T00:00:00').toDateString() === todayStr;
+
+      let displayMax = max;
+      let displayMin = min;
+
+      if (isToday) {
+        const todayDate = String(t);
+        const tomorrow = new Date(todayDate + 'T00:00:00');
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
+
+        let computedMax = null;
+        let computedMin = null;
+
+        const todayHours = hourlyByDate.get(todayDate) || [];
+        for (let k = 0; k < todayHours.length; k++) {
+          const entry = todayHours[k];
+          if (entry.hour >= 0 && entry.hour <= 18) {
+            if (computedMax === null || entry.temp > computedMax) computedMax = entry.temp;
+          }
+          if (entry.hour >= 6) {
+            if (computedMin === null || entry.temp < computedMin) computedMin = entry.temp;
+          }
+        }
+
+        const tomorrowHours = hourlyByDate.get(tomorrowStr) || [];
+        for (let k = 0; k < tomorrowHours.length; k++) {
+          const entry = tomorrowHours[k];
+          if (entry.hour >= 0 && entry.hour <= 6) {
+            if (computedMin === null || entry.temp < computedMin) computedMin = entry.temp;
+          }
+        }
+
+        if (computedMax !== null && Number.isFinite(computedMax)) {
+          displayMax = Math.round(U.temp(computedMax));
+        }
+        if (computedMin !== null && Number.isFinite(computedMin)) {
+          displayMin = Math.round(U.temp(computedMin));
+        }
+      }
 
       return `
         <div class="forecast-col ${isToday ? 'is-today' : ''}">
@@ -99,8 +155,8 @@
             </svg>
           </div>
           <div class="forecast-col-temps">
-            <span class="forecast-col-high">${max}°</span>
-            <span class="forecast-col-low">${min}°</span>
+            <span class="forecast-col-high">${displayMax}°</span>
+            <span class="forecast-col-low">${displayMin}°</span>
           </div>
           <div class="forecast-col-precip" title="Water / precipitation chance">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
