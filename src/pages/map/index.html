@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@200;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/leaflet/leaflet.css" />
+    <link href="/components/global.css" rel="stylesheet">
+    <link href="/components/header/header.css?v=2" rel="stylesheet">
+    <link href="/components/capitals-ticker.css" rel="stylesheet">
+    <link href="/pages/map/map.css" rel="stylesheet">
+    <script src="/static/leaflet/leaflet.js"></script>
+    <script defer src="/components/units.js"></script>
+    <script defer src="/components/i18n.js"></script>
+    <script defer src="/components/header/header.js"></script>
+    <script defer src="/components/settings-modal.js"></script>
+    <script defer src="/components/location-modal.js"></script>
+    <script defer src="/components/capitals-ticker.js?v=2"></script>
+    <script defer src="/pages/map/cache-service.js"></script>
+    <script defer src="/pages/map/weather-service.js"></script>
+    <script defer src="/pages/map/layer-manager.js"></script>
+    <script defer src="/pages/map/popup-manager.js"></script>
+    <script defer src="/pages/map/search-service.js"></script>
+    <script defer src="/pages/map/tile-manager.js"></script>
+    <script defer src="/pages/map/enhanced-tile-manager.js"></script>
+    <script defer src="/pages/map/map.js"></script>
+    <title>Weather Map - Open Arsad</title>
+</head>
+<body>
+    <header class="header">
+        <div class="header__left">
+            <button class="header__hamburger" type="button" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+            <div class="header__logo">
+                <img src="/static/logo.png" width="36" height="36" alt="Open Arsad image">
+            </div>
+            <span class="header__site-name">Open Arsad</span>
+        </div>
+
+        <div class="header__mobile-center">
+            <div class="header__logo">
+                <img src="/static/logo.png" width="36" height="36" alt="Open Arsad image">
+            </div>
+            <span class="header__site-name">Open Arsad</span>
+        </div>
+
+        <nav class="header__nav">
+            <a href="/" class="header__nav-link" data-i18n="nav.home">Home</a>
+            <a href="/dashboard" class="header__nav-link" data-i18n="nav.dashboard">Dashboard</a>
+            <a href="/details" class="header__nav-link" data-i18n="nav.forecast">Details</a>
+            <a href="/climatology" class="header__nav-link" data-i18n="nav.climatology">Climatology</a>
+            <a href="/map" class="header__nav-link header__nav-link--active" data-i18n="nav.map">Weather Map</a>
+        </nav>
+
+        <div class="header__right-controls">
+            <button class="header__geo-button" type="button" data-i18n-title="header.geoTitle" title="Choose location">
+                <img src="/static/gps.png" width="28" height="28" alt="location image">
+            </button>
+
+            <button class="header__settings-button" type="button" data-i18n-title="header.settingsTitle" title="Settings" id="settings-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="capitals-ticker" aria-label="Capital cities weather">
+        <div class="capitals-ticker__stage" id="capitals-stage"></div>
+    </div>
+
+    <div class="settings-modal-backdrop" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true">
+            <div class="settings-modal-header">
+                <h2 data-i18n="settings.title">Settings</h2>
+                <button class="settings-modal-close" type="button">&times;</button>
+            </div>
+            <div class="settings-modal-body">
+                <section class="settings-section">
+                    <h3 data-i18n="settings.units">Units</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                        </svg>
+                        <span data-i18n="settings.temperature">Temperature</span>
+                    </label>
+                    <select class="settings-select" id="temp-unit-select">
+                        <option value="c" data-i18n="settings.unitC">Celsius (°C)</option>
+                        <option value="f" data-i18n="settings.unitF">Fahrenheit (°F)</option>
+                    </select>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
+                        </svg>
+                        <span data-i18n="settings.windSpeed">Wind Speed</span>
+                    </label>
+                    <select class="settings-select" id="wind-unit-select">
+                        <option value="kmh" data-i18n="settings.windKmh">km/h</option>
+                        <option value="kt" data-i18n="settings.windKn">kt</option>
+                        <option value="ms" data-i18n="settings.windMs">m/s</option>
+                    </select>
+                </section>
+                <section class="settings-section">
+                    <h3 data-i18n="settings.language">Language</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        <span data-i18n="settings.uiLanguage">UI Language</span>
+                    </label>
+                    <select class="settings-select" id="settings-lang-select">
+                        <option value="en" data-i18n="lang.en">English</option>
+                        <option value="fr" data-i18n="lang.fr">Français</option>
+                        <option value="es" data-i18n="lang.es">Español</option>
+                        <option value="ar" data-i18n="lang.ar">العربية</option>
+                    </select>
+                </section>
+            </div>
+            <div class="settings-modal-footer">
+                <button class="settings-cancel" type="button" data-i18n="settings.cancel">Cancel</button>
+                <button class="settings-confirm primary" type="button" data-i18n="settings.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="location-modal-backdrop" hidden>
+        <div class="location-modal" role="dialog" aria-modal="true">
+            <h2 data-i18n="location.title">Choose city &amp; country</h2>
+            <label data-i18n="location.country">Country</label>
+            <select class="location-country">
+                <option value="">Select a country</option>
+            </select>
+            <label data-i18n="location.city">City</label>
+            <select class="location-city" disabled>
+                <option value="">Select a country first</option>
+            </select>
+            <div class="location-modal-actions">
+                <button class="location-cancel" data-i18n="location.cancel">Cancel</button>
+                <button class="location-confirm primary" data-i18n="location.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="map-page-body">
+            <div class="map-container" id="map"></div>
+
+            <!-- Layer Panel -->
+            <aside class="map-sidebar card" id="map-sidebar">
+                <div class="map-sidebar-header">
+                    <h3 data-i18n="map.control.layers">Map Layers</h3>
+                    <button class="map-sidebar-close" id="map-sidebar-close" type="button" aria-label="Close layers panel">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="map-layer-list" id="map-layer-list">
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-temperature" checked>
+                        <span>🌡️ Temperature</span>
+                        <input type="range" class="layer-opacity" data-layer="temperature" min="0" max="100" value="82">
+                    </label>
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-wind">
+                        <span>💨 Wind</span>
+                        <input type="range" class="layer-opacity" data-layer="wind" min="0" max="100" value="82">
+                    </label>
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-precipitation">
+                        <span>🌧️ Precipitation</span>
+                        <input type="range" class="layer-opacity" data-layer="precipitation" min="0" max="100" value="82">
+                    </label>
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-humidity">
+                        <span>💧 Humidity</span>
+                        <input type="range" class="layer-opacity" data-layer="humidity" min="0" max="100" value="82">
+                    </label>
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-pressure">
+                        <span>🔵 Pressure</span>
+                        <input type="range" class="layer-opacity" data-layer="pressure" min="0" max="100" value="82">
+                    </label>
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-clouds">
+                        <span>☁️ Clouds</span>
+                        <input type="range" class="layer-opacity" data-layer="clouds" min="0" max="100" value="82">
+                    </label>
+                    <label class="map-layer-item">
+                        <input type="checkbox" id="layer-uv">
+                        <span>☀️ UV Index</span>
+                        <input type="range" class="layer-opacity" data-layer="uv" min="0" max="100" value="82">
+                    </label>
+                </div>
+
+                <div class="map-panel-section">
+                    <h3 data-i18n="map.control.forecast">Forecast Model</h3>
+                    <select id="map-model" class="map-model-select"></select>
+                </div>
+
+                <div class="map-panel-section">
+                    <h3 id="map-legend-title">Legend</h3>
+                    <div class="map-legend-bar" id="map-legend-bar"></div>
+                    <div class="map-legend-labels" id="map-legend-labels"></div>
+                    <p class="map-legend-note" id="map-legend-note"></p>
+                </div>
+
+                <div class="map-panel-section">
+                    <h3>Base Map</h3>
+                    <div class="map-base-toggle">
+                        <button class="map-base-btn active" data-base="osm">Streets</button>
+                        <button class="map-base-btn" data-base="satellite">Satellite</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Animation Controls -->
+            <div class="map-animation card" id="map-animation">
+                <button class="map-anim-btn" id="map-anim-play" type="button" aria-label="Play/Pause">▶</button>
+                <input type="range" class="map-anim-slider" id="map-anim-slider" min="0" max="0" value="0">
+                <span class="map-anim-time" id="map-anim-time">--</span>
+                <select class="map-anim-speed" id="map-anim-speed">
+                    <option value="2000">0.5x</option>
+                    <option value="1000" selected>1x</option>
+                    <option value="500">2x</option>
+                    <option value="250">4x</option>
+                </select>
+            </div>
+
+            <button class="map-fab map-fab--sidebar" id="map-sidebar-fab" type="button" aria-label="Show layers panel">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+            </button>
+
+            <!-- Weather Info Panel -->
+            <div class="map-info-panel card" id="map-info-panel">
+                <button class="map-info-toggle" id="map-info-toggle" type="button" aria-label="Toggle weather summary">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+                </button>
+                <h3 data-i18n="map.infoPanel.title">Weather Summary</h3>
+                <button class="map-info-close" id="map-info-close" type="button" aria-label="Close weather summary">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+                <p class="map-info-hint" id="map-info-hint">Click the map to inspect a location.</p>
+                <div class="map-info-grid" id="map-info-grid" hidden>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.temp">Temperature</span>
+                        <span class="map-info-value" id="info-temp">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.feelsLike">Feels Like</span>
+                        <span class="map-info-value" id="info-feels">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label">Today's High</span>
+                        <span class="map-info-value" id="info-temp-max">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label">Today's Low</span>
+                        <span class="map-info-value" id="info-temp-min">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.humidity">Humidity</span>
+                        <span class="map-info-value" id="info-humidity">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.pressure">Pressure</span>
+                        <span class="map-info-value" id="info-pressure">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.windSpeed">Wind Speed</span>
+                        <span class="map-info-value" id="info-wind">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.windDirection">Wind Direction</span>
+                        <span class="map-info-value" id="info-wind-dir">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.visibility">Visibility</span>
+                        <span class="map-info-value" id="info-visibility">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.uvIndex">UV Index</span>
+                        <span class="map-info-value" id="info-uv">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.cloudCover">Cloud Cover</span>
+                        <span class="map-info-value" id="info-clouds">--</span>
+                    </div>
+                    <div class="map-info-card">
+                        <span class="map-info-label" data-i18n="map.info.rainProb">Rain</span>
+                        <span class="map-info-value" id="info-rain">--</span>
+                    </div>
+                </div>
+                <p class="map-info-time" id="map-info-time"></p>
+                <button class="map-info-reopen" id="map-info-reopen" type="button" aria-label="Show weather summary">Weather Summary</button>
+            </div>
+
+            <!-- Hover Inspection Tooltip -->
+            <div class="map-hover-tooltip" id="map-hover-tooltip" hidden></div>
+        </div>
+    </div>
+
+    <button class="map-fab map-fab--info" id="map-info-fab" type="button" aria-label="Show weather summary">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z"/></svg>
+    </button>
+</body>
+</html>
