@@ -195,13 +195,13 @@ async function refreshGrid() {
   try {
     const b = map.getBounds();
     const bbox = expandBBox(
-      {
+      clampBBox({
         north: b.getNorth(),
         south: b.getSouth(),
         west: b.getWest(),
         east: b.getEast(),
-      },
-      0.4
+      }),
+      0.3
     );
     const date = currentDateUnix();
     const params = new URLSearchParams({
@@ -364,6 +364,16 @@ function debounce(fn, ms) {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+}
+
+function clampBBox(b) {
+  let north = Math.min(85, Math.max(-85, b.north));
+  let south = Math.min(85, Math.max(-85, b.south));
+  if (north < south) [north, south] = [south, north];
+  let west = Math.max(-180, Math.min(180, b.west));
+  let east = Math.max(-180, Math.min(180, b.east));
+  if (west > east) [west, east] = [-180, 180];
+  return { north, south, west, east };
 }
 
 function clamp(v, lo, hi) {

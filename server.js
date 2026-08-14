@@ -337,15 +337,32 @@ app.get('/api/forecast', async (req, res) => {
 app.get('/api/map-grid', async (req, res) => {
   try {
     const layer = String(req.query.layer || 'temperature');
-    const north = parseFloat(req.query.north);
-    const south = parseFloat(req.query.south);
-    const west = parseFloat(req.query.west);
-    const east = parseFloat(req.query.east);
+    let north = parseFloat(req.query.north);
+    let south = parseFloat(req.query.south);
+    let west = parseFloat(req.query.west);
+    let east = parseFloat(req.query.east);
     const cols = Math.min(Math.max(parseInt(req.query.cols, 10) || 32, 4), 64);
     const rows = Math.min(Math.max(parseInt(req.query.rows, 10) || 32, 4), 64);
 
     if ([north, south, west, east].some((v) => !Number.isFinite(v))) {
       return res.status(400).json({ error: 'north, south, west and east are required' });
+    }
+
+    // Clamp to valid geographic ranges. The client expands the viewport before
+    // requesting, which can push coordinates past the poles / antimeridian;
+    // Open-Meteo rejects those, so normalise here.
+    north = Math.min(85, Math.max(-85, north));
+    south = Math.min(85, Math.max(-85, south));
+    if (north < south) {
+      const t = north;
+      north = south;
+      south = t;
+    }
+    west = Math.max(-180, Math.min(180, west));
+    east = Math.max(-180, Math.min(180, east));
+    if (west > east) {
+      west = -180;
+      east = 180;
     }
 
     const LAYER_VARS = {
@@ -391,6 +408,9 @@ app.get('/api/map-grid', async (req, res) => {
     }
 
     const data = await cachedFetchJson(url.toString());
+    if (data && !Array.isArray(data) && data.error) {
+      return res.status(502).json({ error: String(data.reason || data.error) });
+    }
     const list = Array.isArray(data) ? data : [data];
 
     const values = new Array(rows * cols).fill(null);
