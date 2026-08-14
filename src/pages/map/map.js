@@ -37,6 +37,7 @@ let satelliteLayer;
 let weatherLayer;
 let currentGrid = null;
 let debounceTimer = null;
+const gridCache = new Map();
 
 const els = {};
 
@@ -57,9 +58,10 @@ function cacheEls() {
   els.basemaps = document.getElementById('map-basemaps');
   els.legend = document.getElementById('map-legend');
   els.status = document.getElementById('map-status');
-  els.panel = document.getElementById('map-panel');
+  els.panel = document.getElementById('map-modal');
   els.panelClose = document.getElementById('map-panel-close');
   els.panelOpen = document.getElementById('map-panel-open');
+  els.backdrop = document.getElementById('map-modal-backdrop');
 }
 
 function parseUrl() {
@@ -90,7 +92,6 @@ function initMap() {
   (state.basemap === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
 
   weatherLayer = createWeatherLayer(() => currentGrid, () => state.layer);
-  weatherLayer.setOpacity(0.8);
   weatherLayer.addTo(map);
 
   map.on('moveend', () => {
@@ -138,6 +139,12 @@ function bindControls() {
     els.panel.hidden = false;
     els.panelOpen.hidden = true;
   });
+  if (els.backdrop) {
+    els.backdrop.addEventListener('click', () => {
+      els.panel.hidden = true;
+      els.panelOpen.hidden = false;
+    });
+  }
 }
 
 function setBasemap(which) {
@@ -165,6 +172,28 @@ async function refreshGrid() {
       }),
       0.3
     );
+
+    // Exact (layer + bbox) cache hit -> reuse without any network call.
+    const cacheKey = `${state.layer}:${bbox.north.toFixed(1)}:${bbox.south.toFixed(
+      1
+    )}:${bbox.west.toFixed(1)}:${bbox.east.toFixed(1)}`;
+    const cached = gridCache.get(cacheKey);
+    if (cached) {
+      currentGrid = cached;
+      weatherLayer.redraw();
+      hideStatus();
+      return;
+    }
+
+    // Skip the request if the cached grid already covers this viewport (same
+    // layer) — avoids hammering the upstream API while panning and prevents
+    // rate-limit bursts.
+    if (currentGrid && currentGrid.layer === state.layer && gridCovers(currentGrid, bbox)) {
+      weatherLayer.redraw();
+      hideStatus();
+      return;
+    }
+
     const params = new URLSearchParams({
       layer: state.layer,
       north: bbox.north.toFixed(4),
@@ -187,15 +216,27 @@ async function refreshGrid() {
       cols: GRID_COLS,
       rows: GRID_ROWS,
       values: reshape(data.values, GRID_COLS, GRID_ROWS),
+      layer: state.layer,
     };
     if (data.windSpeed) grid.windSpeed = reshape(data.windSpeed, GRID_COLS, GRID_ROWS);
     if (data.windDir) grid.windDir = reshape(data.windDir, GRID_COLS, GRID_ROWS);
     currentGrid = grid;
+    gridCache.set(cacheKey, grid);
     weatherLayer.redraw();
     hideStatus();
   } catch (err) {
     showStatus(`Map data unavailable: ${err.message}`);
   }
+}
+
+// True when the cached grid fully contains the requested bbox.
+function gridCovers(grid, bbox) {
+  return (
+    grid.north >= bbox.north &&
+    grid.south <= bbox.south &&
+    grid.west <= bbox.west &&
+    grid.east >= bbox.east
+  );
 }
 
 function updateLegend() {

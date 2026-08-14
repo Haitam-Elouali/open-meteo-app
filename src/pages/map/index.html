@@ -63,40 +63,43 @@
     </div>
 
     <div class="map-layout">
-        <!-- Control panel (hideable) -->
-        <aside class="map-panel" id="map-panel">
-            <div class="map-panel__head">
-                <h2 class="map-panel__title" data-i18n="map.controls">Map Controls</h2>
-                <button type="button" class="map-panel__close" id="map-panel-close" aria-label="Hide controls">&times;</button>
-            </div>
-
-            <section class="map-panel__section">
-                <label class="map-panel__label" data-i18n="map.layer">Weather layer</label>
-                <div class="map-layers" id="map-layers" role="group"></div>
-            </section>
-
-            <section class="map-panel__section">
-                <label class="map-panel__label" data-i18n="map.basemap">Base map</label>
-                <div class="map-basemaps" id="map-basemaps" role="group">
-                    <button type="button" class="map-opt is-active" data-basemap="map">Map</button>
-                    <button type="button" class="map-opt" data-basemap="satellite">Satellite</button>
-                </div>
-            </section>
-        </aside>
-
-        <!-- Reopen button (shown when panel hidden) -->
-        <button type="button" class="map-panel__open" id="map-panel-open" hidden aria-label="Show controls">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
-            </svg>
-        </button>
-
         <!-- Map canvas -->
         <div class="map-stage">
             <div id="map" class="map-canvas"></div>
             <div class="map-legend" id="map-legend" aria-live="polite"></div>
             <div class="map-status" id="map-status" hidden></div>
         </div>
+
+        <!-- Modal control panel (auto height, hideable) -->
+        <div class="map-modal" id="map-modal">
+            <div class="map-modal__backdrop" id="map-modal-backdrop"></div>
+            <aside class="map-panel" id="map-panel">
+                <div class="map-panel__head">
+                    <h2 class="map-panel__title" data-i18n="map.controls">Map Controls</h2>
+                    <button type="button" class="map-panel__close" id="map-panel-close" aria-label="Hide controls">&times;</button>
+                </div>
+
+                <section class="map-panel__section">
+                    <label class="map-panel__label" data-i18n="map.layer">Weather layer</label>
+                    <div class="map-layers" id="map-layers" role="group"></div>
+                </section>
+
+                <section class="map-panel__section">
+                    <label class="map-panel__label" data-i18n="map.basemap">Base map</label>
+                    <div class="map-basemaps" id="map-basemaps" role="group">
+                        <button type="button" class="map-opt is-active" data-basemap="map">Map</button>
+                        <button type="button" class="map-opt" data-basemap="satellite">Satellite</button>
+                    </div>
+                </section>
+            </aside>
+        </div>
+
+        <!-- Reopen button (shown when modal hidden) -->
+        <button type="button" class="map-panel__open" id="map-panel-open" hidden aria-label="Show controls">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+            </svg>
+        </button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"

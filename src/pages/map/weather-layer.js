@@ -1,9 +1,13 @@
-// A Leaflet GridLayer that renders the weather field as transparent canvas
-// tiles, sampled from a shared grid. The base map stays underneath; only this
-// overlay is swapped when the layer/opacity changes. Opacity is applied by
-// Leaflet's built-in tile-pane opacity, so pixels keep their palette alpha.
+// A Leaflet GridLayer that renders the weather field as semi-transparent canvas
+// tiles, sampled from a shared grid. The base map (its outlines, labels, roads)
+// always stays visible underneath because the raster itself carries alpha — it is
+// not an opaque image replacing the geography. We bake a transparency factor into
+// every pixel so the map shows through everywhere.
 import { buildLUT, layerRange } from './palette.js';
 import { tileLatLngBounds, sampleGrid } from './grid.js';
+
+// Intrinsic overlay transparency (the geography underneath must remain visible).
+const OVERLAY_ALPHA = 0.7;
 
 export function createWeatherLayer(getGrid, getLayerId) {
   const L = window.L;
@@ -52,7 +56,7 @@ export function createWeatherLayer(getGrid, getLayerId) {
           img.data[idx] = lut[li * 4];
           img.data[idx + 1] = lut[li * 4 + 1];
           img.data[idx + 2] = lut[li * 4 + 2];
-          img.data[idx + 3] = lut[li * 4 + 3];
+          img.data[idx + 3] = Math.round(lut[li * 4 + 3] * OVERLAY_ALPHA);
         }
       }
       tctx.putImageData(img, 0, 0);

@@ -129,7 +129,9 @@ test('map page contains required controls and hide/reopen wiring', () => {
 
   assert.ok(doc.getElementById('map'), 'map canvas missing');
   assert.ok(doc.getElementById('map-layers'), 'layer container missing');
-  assert.ok(doc.getElementById('map-panel'), 'control panel missing');
+  assert.ok(doc.getElementById('map-panel'), 'control panel card missing');
+  assert.ok(doc.getElementById('map-modal'), 'modal wrapper missing');
+  assert.ok(doc.getElementById('map-modal-backdrop'), 'modal backdrop missing');
   assert.ok(doc.getElementById('map-panel-close'), 'panel close button missing');
   assert.ok(doc.getElementById('map-panel-open'), 'panel reopen button missing');
   assert.ok(doc.getElementById('map-legend'), 'legend missing');

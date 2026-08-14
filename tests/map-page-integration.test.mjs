@@ -150,7 +150,7 @@ test('basemap toggle and panel hide/reopen work', async () => {
   sat.dispatchEvent(new window.Event('click', { bubbles: true }));
   assert.ok(sat.classList.contains('is-active'), 'satellite basemap active after click');
 
-  const panel = doc.getElementById('map-panel');
+  const panel = doc.getElementById('map-modal');
   const openBtn = doc.getElementById('map-panel-open');
   doc.getElementById('map-panel-close').dispatchEvent(new window.Event('click', { bubbles: true }));
   assert.equal(panel.hidden, true, 'panel hidden after close');
@@ -160,3 +160,44 @@ test('basemap toggle and panel hide/reopen work', async () => {
   assert.equal(panel.hidden, false, 'panel shown again');
   assert.equal(openBtn.hidden, true, 'reopen button hidden again');
 });
+
+test('toggling back to a previously viewed layer uses cache (no extra fetch)', async () => {
+  const html = readFileSync(MAP_HTML, 'utf8');
+  const dom = new JSDOM(html, { url: 'http://localhost/map', pretendToBeVisual: true });
+  const { window } = dom;
+  global.window = window;
+  global.document = window.document;
+  Object.defineProperty(globalThis, 'location', { value: window.location, configurable: true });
+  Object.defineProperty(globalThis, 'history', { value: window.history, configurable: true });
+  window.L = makeFakeL();
+  const fetchCalls = [];
+  global.fetch = async (url) => {
+    fetchCalls.push(String(url));
+    return { ok: true, json: async () => fakeGridFor(url) };
+  };
+
+  await import('../src/pages/map/map.js?' + Date.now());
+  await new Promise((r) => setTimeout(r, 20));
+
+  const doc = window.document;
+  const clickLayer = (id) =>
+    [...doc.querySelectorAll('.map-layer-btn')]
+      .find((b) => b.dataset.layer === id)
+      .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+  const tempCount = () => fetchCalls.filter((u) => u.includes('layer=temperature')).length;
+  assert.equal(tempCount(), 1, 'temperature fetched once on init');
+
+  clickLayer('precipitation');
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(tempCount() === 1, 'temperature not refetched when switching away');
+
+  clickLayer('temperature');
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(
+    tempCount(),
+    1,
+    'switching back to temperature is served from cache (no extra API call)'
+  );
+});
+

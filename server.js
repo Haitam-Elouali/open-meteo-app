@@ -417,7 +417,13 @@ app.get('/api/map-grid', async (req, res) => {
       fields.forEach((f) => url.searchParams.append('current', f));
     }
 
-    const data = await cachedFetchJson(url.toString());
+    let data = await cachedFetchJson(url.toString());
+    // Open-Meteo's free tier rate-limits bursts; retry once after a short backoff
+    // before surfacing a 502 to the client.
+    if (data && !Array.isArray(data) && data.error) {
+      await new Promise((r) => setTimeout(r, 600));
+      data = await cachedFetchJson(url.toString());
+    }
     if (data && !Array.isArray(data) && data.error) {
       return res.status(502).json({ error: String(data.reason || data.error) });
     }
