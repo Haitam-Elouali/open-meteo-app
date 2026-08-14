@@ -21,7 +21,60 @@
 .map-panel__title {
     font-size: 18px;
     font-weight: 400;
-    margin: 0 0 16px;
+    margin: 0;
+}
+
+.map-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.map-panel__close {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.map-panel__close:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.map-panel[hidden] {
+    display: none;
+}
+
+.map-panel__open {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1100;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(15, 23, 42, 0.85);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-panel__open[hidden] {
+    display: none;
+}
+
+.map-panel__open:hover {
+    background: rgba(15, 23, 42, 0.95);
 }
 
 .map-panel__section {
@@ -155,16 +208,26 @@
     background: rgba(56, 189, 248, 0.3);
 }
 
-/* Legend */
+/* Legend (overlay on the map, outside the control panel) */
 .map-legend {
-    margin-top: 8px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1100;
+    width: 220px;
+    max-width: 50vw;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: white;
 }
 
 .map-legend__title {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.85);
     margin-bottom: 8px;
 }
 

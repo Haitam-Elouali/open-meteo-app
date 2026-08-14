@@ -122,22 +122,23 @@ test('expandBBox and normalizeLon helpers', () => {
 });
 
 // ---------- Page structure (jsdom) ----------
-test('map page contains all required controls', () => {
+test('map page contains required controls and hide/reopen wiring', () => {
   const html = readFileSync(MAP_HTML, 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
 
   assert.ok(doc.getElementById('map'), 'map canvas missing');
   assert.ok(doc.getElementById('map-layers'), 'layer container missing');
-  const layerBtns = doc.querySelectorAll('.map-layer-btn, #map-layers button');
-  // buttons are injected by JS, so just ensure the container + script hook exist
-  assert.ok(doc.getElementById('map-layers'));
-  assert.ok(doc.getElementById('opacity-slider'));
-  assert.ok(doc.getElementById('time-slider'));
-  assert.ok(doc.getElementById('cities-toggle'));
-  assert.ok(doc.getElementById('map-legend'));
-  assert.ok(doc.getElementById('map-search'));
-  assert.equal(doc.querySelectorAll('[data-basemap]').length, 2);
+  assert.ok(doc.getElementById('map-panel'), 'control panel missing');
+  assert.ok(doc.getElementById('map-panel-close'), 'panel close button missing');
+  assert.ok(doc.getElementById('map-panel-open'), 'panel reopen button missing');
+  assert.ok(doc.getElementById('map-legend'), 'legend missing');
+  assert.equal(doc.querySelectorAll('[data-basemap]').length, 2, 'need 2 basemap options');
+  // Removed controls must be gone.
+  assert.equal(doc.getElementById('opacity-slider'), null, 'opacity slider should be removed');
+  assert.equal(doc.getElementById('time-slider'), null, 'time slider should be removed');
+  assert.equal(doc.getElementById('cities-toggle'), null, 'cities toggle should be removed');
+  assert.equal(doc.getElementById('map-search'), null, 'search should be removed');
   assert.ok(doc.querySelector('script[src*="leaflet"]'), 'leaflet script missing');
   assert.ok(doc.querySelector('script[src*="map.js"]'), 'map.js module missing');
   assert.ok(doc.querySelector('a.header__nav-link[href="/map"]'), 'map nav link missing');

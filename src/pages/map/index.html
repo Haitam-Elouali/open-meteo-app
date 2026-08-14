@@ -63,9 +63,12 @@
     </div>
 
     <div class="map-layout">
-        <!-- Control panel -->
+        <!-- Control panel (hideable) -->
         <aside class="map-panel" id="map-panel">
-            <h2 class="map-panel__title" data-i18n="map.controls">Map Controls</h2>
+            <div class="map-panel__head">
+                <h2 class="map-panel__title" data-i18n="map.controls">Map Controls</h2>
+                <button type="button" class="map-panel__close" id="map-panel-close" aria-label="Hide controls">&times;</button>
+            </div>
 
             <section class="map-panel__section">
                 <label class="map-panel__label" data-i18n="map.layer">Weather layer</label>
@@ -79,42 +82,19 @@
                     <button type="button" class="map-opt" data-basemap="satellite">Satellite</button>
                 </div>
             </section>
-
-            <section class="map-panel__section">
-                <label class="map-panel__label" for="opacity-slider" data-i18n="map.opacity">Opacity</label>
-                <input type="range" id="opacity-slider" min="0" max="100" value="80" />
-                <span class="map-panel__value" id="opacity-value">80%</span>
-            </section>
-
-            <section class="map-panel__section">
-                <label class="map-panel__label" for="time-slider" data-i18n="map.time">Time</label>
-                <input type="range" id="time-slider" min="0" max="72" step="3" value="0" />
-                <span class="map-panel__value" id="time-value" data-i18n="map.now">Now</span>
-            </section>
-
-            <section class="map-panel__section map-panel__toggle">
-                <label class="map-switch">
-                    <input type="checkbox" id="cities-toggle" checked />
-                    <span data-i18n="map.cities">Show cities</span>
-                </label>
-            </section>
-
-            <section class="map-panel__section">
-                <label class="map-panel__label" for="map-search" data-i18n="map.search">Search location</label>
-                <input type="search" id="map-search" placeholder="e.g. Casablanca" autocomplete="off" />
-                <ul class="map-search-results" id="map-search-results"></ul>
-            </section>
-
-            <section class="map-panel__section">
-                <button type="button" class="map-share" id="map-share" data-i18n="map.share">Copy share link</button>
-            </section>
-
-            <div class="map-legend" id="map-legend" aria-live="polite"></div>
         </aside>
+
+        <!-- Reopen button (shown when panel hidden) -->
+        <button type="button" class="map-panel__open" id="map-panel-open" hidden aria-label="Show controls">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+            </svg>
+        </button>
 
         <!-- Map canvas -->
         <div class="map-stage">
             <div id="map" class="map-canvas"></div>
+            <div class="map-legend" id="map-legend" aria-live="polite"></div>
             <div class="map-status" id="map-status" hidden></div>
         </div>
     </div>

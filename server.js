@@ -13,8 +13,18 @@ async function cachedFetchJson(urlString, options) {
   const cached = apiCache.get(urlString);
   if (cached && cached.expires > now) return cached.data;
 
-  const r = await fetch(urlString, options);
-  const data = await r.json();
+  let r;
+  try {
+    r = await fetch(urlString, options);
+  } catch (e) {
+    return { error: `upstream request failed: ${e?.message || e}` };
+  }
+  let data;
+  try {
+    data = await r.json();
+  } catch {
+    return { error: `upstream returned non-JSON (status ${r.status})`, status: r.status };
+  }
   if (r.ok) apiCache.set(urlString, { expires: now + CACHE_TTL_MS, data });
   return data;
 }
