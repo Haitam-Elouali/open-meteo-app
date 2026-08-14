@@ -78,6 +78,10 @@ app.get('/settings', (req, res) => {
   res.redirect('/');
 });
 
+app.get('/map', (req, res) => {
+  res.sendFile(path.join(__dirname, 'src', 'pages', 'map', 'index.html'));
+});
+
 // Proxy open-meteo
 app.get('/api/weather', async (req, res) => {
   try {
@@ -321,6 +325,110 @@ app.get('/api/forecast', async (req, res) => {
     const data = await cachedFetchJson(url.toString());
 
     res.json({ data, horizon: requested, pastDays, forecastDays });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Weather-map grid: samples an Open-Meteo variable across a bounding box and
+// returns a row-major 2D grid of values that the client renders as transparent
+// overlay tiles. For a past `date` it uses the archive API; otherwise the
+// forecast API (current conditions). Wind layers also return speed + direction.
+app.get('/api/map-grid', async (req, res) => {
+  try {
+    const layer = String(req.query.layer || 'temperature');
+    const north = parseFloat(req.query.north);
+    const south = parseFloat(req.query.south);
+    const west = parseFloat(req.query.west);
+    const east = parseFloat(req.query.east);
+    const cols = Math.min(Math.max(parseInt(req.query.cols, 10) || 32, 4), 64);
+    const rows = Math.min(Math.max(parseInt(req.query.rows, 10) || 32, 4), 64);
+
+    if ([north, south, west, east].some((v) => !Number.isFinite(v))) {
+      return res.status(400).json({ error: 'north, south, west and east are required' });
+    }
+
+    const LAYER_VARS = {
+      temperature: ['temperature_2m'],
+      precipitation: ['precipitation'],
+      radar: ['precipitation'],
+      clouds: ['cloud_cover'],
+      pressure: ['pressure_msl'],
+      wind: ['wind_speed_10m', 'wind_direction_10m'],
+    };
+    const fields = LAYER_VARS[layer];
+    if (!fields) return res.status(400).json({ error: 'unknown layer' });
+
+    const latArr = [];
+    const lonArr = [];
+    for (let r = 0; r < rows; r++) {
+      const lat = north + (south - north) * (rows === 1 ? 0 : r / (rows - 1));
+      for (let c = 0; c < cols; c++) {
+        const lon = west + (east - west) * (cols === 1 ? 0 : c / (cols - 1));
+        latArr.push(Number(lat.toFixed(4)));
+        lonArr.push(Number(lon.toFixed(4)));
+      }
+    }
+
+    const date = req.query.date ? parseInt(req.query.date, 10) : null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const useArchive = date !== null && date < nowSec - 60;
+    const base = useArchive
+      ? 'https://archive-api.open-meteo.com/v1/archive'
+      : 'https://api.open-meteo.com/v1/forecast';
+
+    const url = new URL(base);
+    url.searchParams.set('latitude', latArr.join(','));
+    url.searchParams.set('longitude', lonArr.join(','));
+    url.searchParams.set('timezone', 'UTC');
+    if (useArchive) {
+      const d = new Date(date * 1000).toISOString().slice(0, 10);
+      url.searchParams.set('start_date', d);
+      url.searchParams.set('end_date', d);
+      fields.forEach((f) => url.searchParams.append('hourly', f));
+    } else {
+      fields.forEach((f) => url.searchParams.append('current', f));
+    }
+
+    const data = await cachedFetchJson(url.toString());
+    const list = Array.isArray(data) ? data : [data];
+
+    const values = new Array(rows * cols).fill(null);
+    const windSpeed = fields.length > 1 ? new Array(rows * cols).fill(null) : null;
+    const windDir = fields.length > 1 ? new Array(rows * cols).fill(null) : null;
+
+    const pick = (obj, f) => {
+      if (!obj) return null;
+      const v = obj[f];
+      if (Array.isArray(v)) return v.find((x) => x !== null && x !== undefined) ?? null;
+      return v ?? null;
+    };
+
+    for (let i = 0; i < list.length; i++) {
+      const loc = list[i];
+      if (!loc) continue;
+      if (useArchive) {
+        values[i] = pick(loc.hourly, fields[0]);
+        if (windSpeed) windSpeed[i] = pick(loc.hourly, 'wind_speed_10m');
+        if (windDir) windDir[i] = pick(loc.hourly, 'wind_direction_10m');
+      } else {
+        values[i] = pick(loc.current, fields[0]);
+        if (windSpeed) windSpeed[i] = pick(loc.current, 'wind_speed_10m');
+        if (windDir) windDir[i] = pick(loc.current, 'wind_direction_10m');
+      }
+    }
+
+    res.json({
+      layer,
+      rows,
+      cols,
+      lats: latArr,
+      lons: lonArr,
+      values,
+      windSpeed,
+      windDir,
+      date: date || null,
+    });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
