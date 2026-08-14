@@ -3,13 +3,25 @@
 // layer above it. Changing the layer only swaps the overlay; the base stays.
 import { LAYER_ORDER, getLayer } from './layers.js';
 import { legendStops } from './palette.js';
-import { reshape, expandBBox, clampBBox } from './grid.js';
+import { reshape, expandBBox } from './grid.js';
 import { createWeatherLayer } from './weather-layer.js';
 
 const L = window.L;
 const GRID_COLS = 16;
 const GRID_ROWS = 16;
 const DEBOUNCE_MS = 350;
+
+// Keep requested bounds within valid geographic ranges so we never send
+// out-of-range coordinates to the weather API.
+function clampBBox(b) {
+  let north = Math.min(85, Math.max(-85, b.north));
+  let south = Math.min(85, Math.max(-85, b.south));
+  if (north < south) [north, south] = [south, north];
+  let west = Math.max(-180, Math.min(180, b.west));
+  let east = Math.max(-180, Math.min(180, b.east));
+  if (west > east) [west, east] = [-180, 180];
+  return { north, south, west, east };
+}
 
 const state = {
   layer: 'temperature',
