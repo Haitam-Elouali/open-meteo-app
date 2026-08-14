@@ -5,7 +5,7 @@
 window.I18n = (function () {
   const DICT = {
     en: {
-'nav.home': 'Home', 'nav.dashboard': 'Dashboard', 'nav.forecast': 'Forecast', 'nav.map': 'Weather Map',
+'nav.home': 'Home', 'nav.dashboard': 'Dashboard', 'nav.forecast': 'Forecast',
       'forecast.today': 'Today',
       'forecast.tomorrow': 'Tomorrow',
       'settings.title': 'Settings', 'settings.appearance': 'Appearance', 'settings.theme': 'Theme',
@@ -31,11 +31,10 @@ window.I18n = (function () {
       'nav.climatology': 'Climatology',
       'climatology.title': 'Climatology', 'climatology.subtitle': 'View past weather data for a specific date and hour',
       'climatology.date': 'Date', 'climatology.hour': 'Hour', 'climatology.fetch': 'Fetch Data',
-      'climatology.loading': 'Loading...', 'climatology.error': 'Unable to load climatology data.', 'climatology.hourlyTrend': 'Hourly temperature trend', 'climatology.pressure': 'Pressure', 'climatology.cloudCover': 'Cloud cover', 'climatology.uvIndex': 'UV Index',
-      'map.title': 'Weather Map', 'map.loading': 'Loading weather map...', 'map.noData': 'No weather data available for display on the map.', 'map.error': 'Unable to load weather map data.',
+      'climatology.loading': 'Loading...', 'climatology.error': 'Unable to load climatology data.', 'climatology.hourlyTrend': 'Hourly temperature trend', 'climatology.pressure': 'Pressure', 'climatology.cloudCover': 'Cloud cover',       'climatology.uvIndex': 'UV Index',
     },
     fr: {
-      'nav.home': 'Accueil', 'nav.dashboard': 'Tableau de bord',       'nav.forecast': 'Prévisions', 'nav.map': 'Carte météo',
+      'nav.home': 'Accueil', 'nav.dashboard': 'Tableau de bord',       'nav.forecast': 'Prévisions',
       'forecast.today': "Aujourd'hui",
       'forecast.tomorrow': 'Demain',
       'settings.title': 'Paramètres', 'settings.appearance': 'Apparence', 'settings.theme': 'Thème',
@@ -61,11 +60,10 @@ window.I18n = (function () {
       'nav.climatology': 'Climatologie',
       'climatology.title': 'Climatologie', 'climatology.subtitle': 'Consulter les données météo passées pour une date et heure choisies',
       'climatology.date': 'Date', 'climatology.hour': 'Heure', 'climatology.fetch': 'Charger',
-      'climatology.loading': 'Chargement...', 'climatology.error': 'Impossible de charger les données de climatologie.', 'climatology.hourlyTrend': 'Tendance horaire de température', 'climatology.pressure': 'Pression', 'climatology.cloudCover': 'Couverture nuageuse', 'climatology.uvIndex': 'Indice UV',
-      'map.title': 'Carte météo', 'map.loading': 'Chargement de la carte météo...', 'map.noData': 'Aucune donnée météo disponible pour afficher sur la carte.', 'map.error': 'Impossible de charger les données de la carte météo.',
+      'climatology.loading': 'Chargement...', 'climatology.error': 'Impossible de charger les données de climatologie.', 'climatology.hourlyTrend': 'Tendance horaire de température', 'climatology.pressure': 'Pression', 'climatology.cloudCover': 'Couverture nuageuse',       'climatology.uvIndex': 'Indice UV',
     },
     es: {
-      'nav.home': 'Inicio', 'nav.dashboard': 'Panel',       'nav.forecast': 'Pronóstico', 'nav.map': 'Mapa meteorológico',
+      'nav.home': 'Inicio', 'nav.dashboard': 'Panel',       'nav.forecast': 'Pronóstico',
       'forecast.today': 'Hoy',
       'forecast.tomorrow': 'Mañana',
       'settings.title': 'Ajustes', 'settings.appearance': 'Apariencia', 'settings.theme': 'Tema',
@@ -91,11 +89,10 @@ window.I18n = (function () {
       'nav.climatology': 'Climatología',
       'climatology.title': 'Climatología', 'climatology.subtitle': 'Ver datos meteorológicos pasados para una fecha y hora elegidas',
       'climatology.date': 'Fecha', 'climatology.hour': 'Hora', 'climatology.fetch': 'Cargar',
-      'climatology.loading': 'Cargando...', 'climatology.error': 'No se pudieron cargar los datos de climatología.', 'climatology.hourlyTrend': 'Tendencia horaria de temperatura', 'climatology.pressure': 'Presión', 'climatology.cloudCover': 'Cobertura de nubes', 'climatology.uvIndex': 'Índice UV',
-      'map.title': 'Mapa meteorológico', 'map.loading': 'Cargando mapa meteorológico...', 'map.noData': 'No hay datos meteorológicos disponibles para mostrar en el mapa.', 'map.error': 'No se pudieron cargar los datos del mapa meteorológico.',
+      'climatology.loading': 'Cargando...', 'climatology.error': 'No se pudieron cargar los datos de climatología.', 'climatology.hourlyTrend': 'Tendencia horaria de temperatura', 'climatology.pressure': 'Presión', 'climatology.cloudCover': 'Cobertura de nubes',       'climatology.uvIndex': 'Índice UV',
     },
     ar: {
-      'nav.home': 'الرئيسية', 'nav.dashboard': 'لوحة التحكم',       'nav.forecast': 'التوقعات', 'nav.map': 'خريطة الطقس',
+      'nav.home': 'الرئيسية', 'nav.dashboard': 'لوحة التحكم',       'nav.forecast': 'التوقعات',
       'forecast.today': 'اليوم',
       'forecast.tomorrow': 'غداً',
       'settings.title': 'الإعدادات', 'settings.appearance': 'المظهر', 'settings.theme': 'السمة',
@@ -121,8 +118,7 @@ window.I18n = (function () {
       'nav.climatology': 'المناخ',
       'climatology.title': 'المناخ', 'climatology.subtitle': 'عرض بيانات الطقس السابقة لتاريخ ووقت محددين',
       'climatology.date': 'التاريخ', 'climatology.hour': 'الساعة', 'climatology.fetch': 'تحميل',
-      'climatology.loading': 'جاري التحميل...', 'climatology.error': 'تعذر تحميل بيانات المناخ.', 'climatology.hourlyTrend': 'الاتجاه الحراري لدرجة الحرارة', 'climatology.pressure': 'الضغط', 'climatology.cloudCover': 'تغطية السحب', 'climatology.uvIndex': 'مؤشر الأشعة فوق البنفسجية',
-      'map.title': 'خريطة الطقس', 'map.loading': 'جاري تحميل خريطة الطقس...', 'map.noData': 'لا توجد بيانات طقس متاحة لعرضها على الخريطة.', 'map.error': 'تعذر تحميل بيانات الخريطة الطقسية.',
+      'climatology.loading': 'جاري التحميل...', 'climatology.error': 'تعذر تحميل بيانات المناخ.', 'climatology.hourlyTrend': 'الاتجاه الحراري لدرجة الحرارة', 'climatology.pressure': 'الضغط', 'climatology.cloudCover': 'تغطية السحب',       'climatology.uvIndex': 'مؤشر الأشعة فوق البنفسجية',
     }
   };
 

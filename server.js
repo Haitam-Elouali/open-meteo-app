@@ -326,43 +326,6 @@ app.get('/api/forecast', async (req, res) => {
   }
 });
 
-// Generic, cached proxy used by the Weather Map overlays. Forwards the supplied
-// query parameters to Open-Meteo (forecast or archive) and returns the JSON.
-// Going through the server keeps requests same-origin (no browser CORS issues),
-// reuses the in-memory cache (so identical grid requests are not re-fetched),
-// and lets the client stay generic about which variables/models it asks for.
-app.get('/api/grid', async (req, res) => {
-  try {
-    const source = String(req.query.source || 'forecast').toLowerCase();
-    const base = source === 'archive'
-      ? 'https://archive-api.open-meteo.com/v1/archive'
-      : 'https://api.open-meteo.com/v1/forecast';
-    const url = new URL(base);
-    Object.entries(req.query).forEach(([k, v]) => {
-      if (k === 'source') return;
-      if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, x));
-      else url.searchParams.append(k, v);
-    });
-    if (!url.searchParams.get('timezone')) url.searchParams.set('timezone', 'auto');
-
-    const data = await cachedFetchJson(url.toString());
-    // Open-Meteo returns an array when multiple coordinates are requested.
-    // It can also return an error object (e.g. rate limited) as the first/only
-    // element — surface that as a 502 so the client can react.
-    const list = Array.isArray(data) ? data : [data];
-    const first = list[0] || {};
-    if (!list.length || first.error || !first.hourly) {
-      res.set('Access-Control-Allow-Origin', '*');
-      return res.status(502).json({ error: first.reason || first.error || 'No data from upstream' });
-    }
-    res.set('Access-Control-Allow-Origin', '*');
-    res.json({ source, data: list });
-  } catch (e) {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.status(500).json({ error: String(e?.message || e) });
-  }
-});
-
 // Daily temperature summary for the current date only.
 // Returns max/min temperature for the requested location, cached per day.
 app.get('/api/daily-temp', async (req, res) => {
