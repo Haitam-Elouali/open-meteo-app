@@ -78,10 +78,6 @@ app.get('/settings', (req, res) => {
   res.redirect('/');
 });
 
-app.get('/map', (req, res) => {
-  res.sendFile(path.join(__dirname, 'src', 'pages', 'map', 'index.html'));
-});
-
 // Proxy open-meteo
 app.get('/api/weather', async (req, res) => {
   try {

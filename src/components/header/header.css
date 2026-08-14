@@ -156,97 +156,146 @@
     display: none;
 }
 
+/* Full-screen backdrop shown behind the slide-in mobile menu. */
+.header__menu-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.header__menu-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
 @media (max-width: 640px) {
     .header {
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        justify-content: space-between;
         align-items: center;
+        position: relative;
+        padding: 10px 16px;
+        gap: 8px;
+        /* Remove the glass blur on mobile so it does not become the
+           containing block for the fixed slide-in drawer (which would clip it). */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
+    /* Hamburger stays on the left; hide the inline logo/name there
+       (the centered logo + name is rendered by .header__mobile-center). */
+    .header__left {
+        display: flex;
+        order: 1;
+        flex: 0 0 auto;
+    }
+
+    .header__left .header__logo,
+    .header__left .header__site-name {
+        display: none;
+    }
+
+    /* Logo + site name centered. */
     .header__mobile-center {
         display: flex;
         position: absolute;
-        top: 28px;
+        top: 50%;
         left: 50%;
-        transform: translateX(-50%);
-        z-index: 100;
+        transform: translate(-50%, -50%);
+        z-index: 5;
         flex-direction: column;
         align-items: center;
-        gap: 4px;
+        gap: 2px;
+        pointer-events: none;
     }
 
     .header__mobile-center .header__logo {
-        width: 36px;
-        height: 36px;
+        width: 32px;
+        height: 32px;
     }
 
     .header__mobile-center .header__site-name {
         display: block;
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 200;
         color: white;
     }
 
-    .header__left {
-        display: none;
+    /* Action buttons on the right. */
+    .header__right-controls {
+        display: flex;
+        order: 3;
+        flex: 0 0 auto;
     }
 
     .header__hamburger {
         display: flex;
     }
 
-    .header__hamburger span {
-        display: block;
-        width: 22px;
-        height: 2px;
-        background: white;
-        border-radius: 2px;
-        transition: transform 0.3s, opacity 0.3s;
-    }
-
+    /* Slide-in drawer from the left with the highest z-index + animation. */
     .header__nav {
-        display: none;
-        position: static;
-        left: auto;
-        transform: none;
-    }
-
-    .header.is-menu-open .header__nav {
         display: flex;
-        position: absolute;
-        top: 70px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(15, 23, 42, 0.95);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border-radius: 12px;
-        padding: 12px 16px;
-        gap: 8px;
-        flex-wrap: wrap;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: min(80vw, 320px);
+        flex-direction: column;
+        align-items: stretch;
         justify-content: center;
-        max-width: 90vw;
+        gap: 6px;
+        background: rgba(15, 23, 42, 0.98);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        padding: 80px 20px 24px 24px;
+        z-index: 10000;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
         box-sizing: border-box;
     }
 
-    .header.is-menu-open .header__nav-link {
-        display: flex;
-        padding: 8px 12px;
-        border-radius: 8px;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 14px;
-        white-space: nowrap;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
+    .header.is-menu-open .header__nav {
+        transform: translateX(0);
     }
 
-    .header.is-menu-open .header__nav-link:hover,
-    .header.is-menu-open .header__nav-link--active {
+    .header__nav-link {
+        display: flex;
+        padding: 14px 16px;
+        border-radius: 10px;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 16px;
+        font-weight: 300;
+        white-space: nowrap;
+    }
+
+    .header__nav-link:hover,
+    .header__nav-link--active {
         color: white;
         background: rgba(255, 255, 255, 0.12);
     }
 
-    .header__right-controls {
-        display: none;
+    /* Animate the hamburger into a close (X) icon. */
+    .header.is-menu-open .header__hamburger span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg);
+    }
+
+    .header.is-menu-open .header__hamburger span:nth-child(2) {
+        opacity: 0;
+    }
+
+    .header.is-menu-open .header__hamburger span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg);
+    }
+
+    /* Legacy home-only mobile menu is no longer used. */
+    .header__mobile-menu,
+    .header__mobile-nav-link {
+        display: none !important;
     }
 }

@@ -5,17 +5,6 @@
     overflow: hidden;
 }
 
-@media (max-width: 640px) {
-    .header--forecast .header__nav {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        order: 0;
-        width: auto;
-        flex-wrap: nowrap;
-    }
-}
-
 .page {
     max-width: 1100px;
     margin: 12px auto 24px;
@@ -225,6 +214,7 @@
 @media (max-width: 600px) {
     .forecast-toolbar {
         padding-inline-start: 0;
+        justify-content: center;
     }
     .forecast-block--compact .forecast-toolbar {
         padding-inline-start: 0;
