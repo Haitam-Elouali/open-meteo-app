@@ -38,6 +38,7 @@ let weatherLayer;
 let currentGrid = null;
 let debounceTimer = null;
 const gridCache = new Map();
+const FAIL_TTL_MS = 15000;
 
 const els = {};
 
@@ -49,6 +50,8 @@ function init() {
   bindControls();
   updateLegend();
   applyControlValues();
+  fitMapLayout();
+  window.addEventListener('resize', fitMapLayout);
   refreshGrid();
   syncUrl();
 }
@@ -139,12 +142,6 @@ function bindControls() {
     els.panel.hidden = false;
     els.panelOpen.hidden = true;
   });
-  if (els.backdrop) {
-    els.backdrop.addEventListener('click', () => {
-      els.panel.hidden = true;
-      els.panelOpen.hidden = false;
-    });
-  }
 }
 
 function setBasemap(which) {
@@ -161,28 +158,38 @@ function setBasemap(which) {
 
 async function refreshGrid() {
   showStatus('Loading weather…');
-  try {
-    const b = map.getBounds();
-    const bbox = expandBBox(
-      clampBBox({
-        north: b.getNorth(),
-        south: b.getSouth(),
-        west: b.getWest(),
-        east: b.getEast(),
-      }),
-      0.3
-    );
+  const b = map.getBounds();
+  const bbox = expandBBox(
+    clampBBox({
+      north: b.getNorth(),
+      south: b.getSouth(),
+      west: b.getWest(),
+      east: b.getEast(),
+    }),
+    0.3
+  );
 
+  const cacheKey = `${state.layer}:${bbox.north.toFixed(1)}:${bbox.south.toFixed(
+    1
+  )}:${bbox.west.toFixed(1)}:${bbox.east.toFixed(1)}`;
+
+  try {
     // Exact (layer + bbox) cache hit -> reuse without any network call.
-    const cacheKey = `${state.layer}:${bbox.north.toFixed(1)}:${bbox.south.toFixed(
-      1
-    )}:${bbox.west.toFixed(1)}:${bbox.east.toFixed(1)}`;
     const cached = gridCache.get(cacheKey);
     if (cached) {
-      currentGrid = cached;
-      weatherLayer.redraw();
-      hideStatus();
-      return;
+      if (cached.__error) {
+        // Don't hammer the upstream API right after a failure.
+        if (Date.now() - cached.t < FAIL_TTL_MS) {
+          showStatus('Weather layer temporarily unavailable — retrying soon');
+          return;
+        }
+        gridCache.delete(cacheKey);
+      } else {
+        currentGrid = cached;
+        weatherLayer.redraw();
+        hideStatus();
+        return;
+      }
     }
 
     // Skip the request if the cached grid already covers this viewport (same
@@ -225,6 +232,7 @@ async function refreshGrid() {
     weatherLayer.redraw();
     hideStatus();
   } catch (err) {
+    gridCache.set(cacheKey, { __error: true, t: Date.now() });
     showStatus(`Map data unavailable: ${err.message}`);
   }
 }
@@ -237,6 +245,21 @@ function gridCovers(grid, bbox) {
     grid.west <= bbox.west &&
     grid.east >= bbox.east
   );
+}
+
+// Make the map fill the viewport height below the header + ticker chrome.
+function fitMapLayout() {
+  const layout = document.querySelector('.map-layout');
+  if (!layout) return;
+  const header = document.querySelector('.header');
+  const ticker = document.querySelector('.capitals-ticker');
+  const top = (header ? header.offsetHeight : 0) + (ticker ? ticker.offsetHeight : 0);
+  layout.style.position = 'absolute';
+  layout.style.top = top + 'px';
+  layout.style.left = '0';
+  layout.style.right = '0';
+  layout.style.bottom = '0';
+  layout.style.height = 'auto';
 }
 
 function updateLegend() {
