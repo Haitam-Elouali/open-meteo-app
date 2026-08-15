@@ -1,27 +1,32 @@
-// Main weather map controller. Architecture: a permanent geographic base map
-// (OpenStreetMap or satellite) with exactly one transparent weather overlay tile
-// layer above it. Changing the layer only swaps the overlay; the base stays.
+// Weather map controller. A permanent geographic base map (OpenStreetMap or
+// satellite) with exactly one weather overlay above it.
+//
+// Weather source: OpenWeatherMap tile layers are used when an API key is
+// configured (crisp, pre-rendered tiles — never blurry). If no key is set, the
+// app falls back to Open-Meteo's grid endpoint so the map still works. Either
+// way, changing the layer only swaps the overlay; the base map stays put.
 import { LAYER_ORDER, getLayer } from './layers.js';
 import { legendStops } from './palette.js';
 import { reshape, expandBBox } from './grid.js';
 import { createWeatherLayer } from './weather-layer.js';
 
 const L = window.L;
-const GRID_COLS = 16;
-const GRID_ROWS = 16;
-const DEBOUNCE_MS = 350;
+const OWM_BASE = 'https://tile.openweathermap.org/map';
 
-// Keep requested bounds within valid geographic ranges so we never send
-// out-of-range coordinates to the weather API.
-function clampBBox(b) {
-  let north = Math.min(85, Math.max(-85, b.north));
-  let south = Math.min(85, Math.max(-85, b.south));
-  if (north < south) [north, south] = [south, north];
-  let west = Math.max(-180, Math.min(180, b.west));
-  let east = Math.max(-180, Math.min(180, b.east));
-  if (west > east) [west, east] = [-180, 180];
-  return { north, south, west, east };
-}
+// Map our layer ids to OpenWeatherMap tile layer names. OWM has no dedicated
+// radar tile set, so radar reuses the precipitation tiles.
+const OWM_LAYERS = {
+  temperature: 'temp_new',
+  precipitation: 'precipitation_new',
+  radar: 'precipitation_new',
+  clouds: 'clouds_new',
+  pressure: 'pressure_new',
+  wind: 'wind_new',
+};
+
+const GRID_COLS = 20;
+const GRID_ROWS = 20;
+const DEBOUNCE_MS = 350;
 
 const state = {
   layer: 'temperature',
@@ -34,7 +39,10 @@ const state = {
 let map;
 let baseMapLayer;
 let satelliteLayer;
-let weatherLayer;
+let weatherLayer = null;
+let weatherKind = null; // 'owm' | 'om'
+let owmKey = '';
+let usingOwm = false;
 let currentGrid = null;
 let debounceTimer = null;
 const gridCache = new Map();
@@ -42,9 +50,10 @@ const FAIL_TTL_MS = 15000;
 
 const els = {};
 
-function init() {
+async function init() {
   cacheEls();
   parseUrl();
+  await loadConfig();
   initMap();
   buildLayerButtons();
   bindControls();
@@ -52,7 +61,7 @@ function init() {
   applyControlValues();
   fitMapLayout();
   window.addEventListener('resize', fitMapLayout);
-  refreshGrid();
+  setWeatherLayer();
   syncUrl();
 }
 
@@ -67,13 +76,18 @@ function cacheEls() {
   els.backdrop = document.getElementById('map-modal-backdrop');
 }
 
-function parseUrl() {
-  const p = new URLSearchParams(location.search);
-  if (p.get('layer')) state.layer = p.get('layer');
-  if (p.get('basemap')) state.basemap = p.get('basemap');
-  if (p.get('lat')) state.lat = Number(p.get('lat'));
-  if (p.get('lon')) state.lon = Number(p.get('lon'));
-  if (p.get('zoom')) state.zoom = Number(p.get('zoom'));
+// Pull the (non-secret) frontend config from the server. The OpenWeatherMap key
+// lives server-side in the environment so it is never baked into the bundle.
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const cfg = await res.json();
+      owmKey = cfg.openWeatherKey || '';
+    }
+  } catch (e) {
+    owmKey = '';
+  }
 }
 
 function initMap() {
@@ -94,13 +108,51 @@ function initMap() {
 
   (state.basemap === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
 
-  weatherLayer = createWeatherLayer(() => currentGrid, () => state.layer);
-  weatherLayer.addTo(map);
-
   map.on('moveend', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
+    syncUrl();
+    if (!usingOwm) {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
+    }
   });
+}
+
+// Decide which backend to use and (re)create the overlay for the active layer.
+function setWeatherLayer() {
+  if (owmKey) {
+    usingOwm = true;
+    setOwmLayer();
+  } else {
+    usingOwm = false;
+    ensureOpenMeteoLayer();
+  }
+}
+
+function setOwmLayer() {
+  if (weatherLayer && weatherKind === 'owm') map.removeLayer(weatherLayer);
+  const name = OWM_LAYERS[state.layer] || 'temp_new';
+  const url = `${OWM_BASE}/${name}/{z}/{x}/{y}.png?appid=${encodeURIComponent(owmKey)}`;
+  weatherLayer = L.tileLayer(url, {
+    maxZoom: 18,
+    opacity: 0.65,
+    attribution: '&copy; OpenWeatherMap',
+  });
+  weatherKind = 'owm';
+  hideStatus();
+  weatherLayer.addTo(map);
+  weatherLayer.bringToFront();
+}
+
+function ensureOpenMeteoLayer() {
+  if (weatherLayer && weatherKind === 'om') {
+    refreshGrid();
+    return;
+  }
+  weatherLayer = createWeatherLayer(() => currentGrid, () => state.layer);
+  weatherKind = 'om';
+  weatherLayer.addTo(map);
+  weatherLayer.bringToFront();
+  refreshGrid();
 }
 
 function buildLayerButtons() {
@@ -124,7 +176,8 @@ function setLayer(id) {
     b.classList.toggle('is-active', b.dataset.layer === id)
   );
   updateLegend();
-  refreshGrid();
+  if (usingOwm) setOwmLayer();
+  else refreshGrid();
   syncUrl();
 }
 
@@ -149,11 +202,69 @@ function setBasemap(which) {
   state.basemap = which;
   map.removeLayer(which === 'satellite' ? baseMapLayer : satelliteLayer);
   (which === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
-  weatherLayer.bringToFront();
+  if (weatherLayer) weatherLayer.bringToFront();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
   );
   syncUrl();
+}
+
+function parseUrl() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('layer')) state.layer = p.get('layer');
+  if (p.get('basemap')) state.basemap = p.get('basemap');
+  if (p.get('lat')) state.lat = Number(p.get('lat'));
+  if (p.get('lon')) state.lon = Number(p.get('lon'));
+  if (p.get('zoom')) state.zoom = Number(p.get('zoom'));
+}
+
+// Keep requested bounds within valid geographic ranges so we never send
+// out-of-range coordinates to the weather API.
+function clampBBox(b) {
+  let north = Math.min(85, Math.max(-85, b.north));
+  let south = Math.min(85, Math.max(-85, b.south));
+  if (north < south) [north, south] = [south, north];
+  let west = Math.max(-180, Math.min(180, b.west));
+  let east = Math.max(-180, Math.min(180, b.east));
+  if (west > east) [west, east] = [-180, 180];
+  return { north, south, west, east };
+}
+
+// Make the map fill the viewport below the header + ticker chrome, and keep the
+// control panel sitting just under that chrome with a little breathing room.
+function fitMapLayout() {
+  const layout = document.querySelector('.map-layout');
+  if (!layout) return;
+  const header = document.querySelector('.header');
+  const ticker = document.querySelector('.capitals-ticker');
+  const top = (header ? header.offsetHeight : 0) + (ticker ? ticker.offsetHeight : 0);
+  layout.style.position = 'absolute';
+  layout.style.top = top + 'px';
+  layout.style.left = '0';
+  layout.style.right = '0';
+  layout.style.bottom = '0';
+  layout.style.height = 'auto';
+
+  // The control panel (and its reopen button) live inside the fixed modal, so
+  // start it below the header + ticker instead of overlapping them.
+  if (els.panel) {
+    els.panel.style.position = 'fixed';
+    els.panel.style.top = top + 'px';
+    els.panel.style.left = '0';
+    els.panel.style.right = '0';
+    els.panel.style.bottom = '0';
+  }
+}
+
+// Validate the existing grid still covers a viewport (same layer) so we can skip
+// a redundant, and potentially rate-limited, upstream request while panning.
+function gridCovers(grid, bbox) {
+  return (
+    grid.north >= bbox.north &&
+    grid.south <= bbox.south &&
+    grid.west <= bbox.west &&
+    grid.east >= bbox.east
+  );
 }
 
 async function refreshGrid() {
@@ -174,11 +285,9 @@ async function refreshGrid() {
   )}:${bbox.west.toFixed(1)}:${bbox.east.toFixed(1)}`;
 
   try {
-    // Exact (layer + bbox) cache hit -> reuse without any network call.
     const cached = gridCache.get(cacheKey);
     if (cached) {
       if (cached.__error) {
-        // Don't hammer the upstream API right after a failure.
         if (Date.now() - cached.t < FAIL_TTL_MS) {
           showStatus('Weather layer temporarily unavailable — retrying soon');
           return;
@@ -192,9 +301,6 @@ async function refreshGrid() {
       }
     }
 
-    // Skip the request if the cached grid already covers this viewport (same
-    // layer) — avoids hammering the upstream API while panning and prevents
-    // rate-limit bursts.
     if (currentGrid && currentGrid.layer === state.layer && gridCovers(currentGrid, bbox)) {
       weatherLayer.redraw();
       hideStatus();
@@ -235,31 +341,6 @@ async function refreshGrid() {
     gridCache.set(cacheKey, { __error: true, t: Date.now() });
     showStatus(`Map data unavailable: ${err.message}`);
   }
-}
-
-// True when the cached grid fully contains the requested bbox.
-function gridCovers(grid, bbox) {
-  return (
-    grid.north >= bbox.north &&
-    grid.south <= bbox.south &&
-    grid.west <= bbox.west &&
-    grid.east >= bbox.east
-  );
-}
-
-// Make the map fill the viewport height below the header + ticker chrome.
-function fitMapLayout() {
-  const layout = document.querySelector('.map-layout');
-  if (!layout) return;
-  const header = document.querySelector('.header');
-  const ticker = document.querySelector('.capitals-ticker');
-  const top = (header ? header.offsetHeight : 0) + (ticker ? ticker.offsetHeight : 0);
-  layout.style.position = 'absolute';
-  layout.style.top = top + 'px';
-  layout.style.left = '0';
-  layout.style.right = '0';
-  layout.style.bottom = '0';
-  layout.style.height = 'auto';
 }
 
 function updateLegend() {

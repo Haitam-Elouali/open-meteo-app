@@ -63,6 +63,12 @@ app.use(express.static(publicDir, {
 // Health check
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+// Frontend config (non-secret, client-visible settings). The OpenWeatherMap
+// tile API key is read from the environment so it never gets committed.
+app.get('/api/config', (req, res) => {
+  res.json({ openWeatherKey: process.env.OPENWEATHER_API_KEY || '' });
+});
+
 // Root page: serve home
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'pages', 'home', 'index.html'));
