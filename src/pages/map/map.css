@@ -250,7 +250,6 @@
    page consistent even when header.css is served from an older copy). */
 .header__geo-button:hover {
     background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.6);
 }
 
 /* ---------- OWM-style forecast scrubber (bottom center) ---------- */
