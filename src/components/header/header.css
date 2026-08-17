@@ -99,17 +99,20 @@
 
 .header__geo-button:hover {
     background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.6);
 }
 
 .header__geo-button {
     background-color: rgba(0, 0, 0, 0);
-    border: none;
+    border: 1px solid transparent;
+    border-radius: 50%;
     width: 32px;
     height: 32px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
 }
 
 .header__geo-button img {
