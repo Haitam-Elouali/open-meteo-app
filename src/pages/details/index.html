@@ -8,17 +8,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@200;400;500&display=swap" rel="stylesheet">
     <link href="/components/global.css" rel="stylesheet">
-    <link href="/components/header/header.css?v=2" rel="stylesheet">
+    <link href="/components/header/header.css?v=3" rel="stylesheet">
     <link href="/pages/details/details.css" rel="stylesheet">
     <link href="/components/capitals-ticker.css" rel="stylesheet">
     <script defer src="/components/units.js"></script>
     <script defer src="/components/i18n.js"></script>
     <script defer src="/components/header/header.js"></script>
     <script defer src="/components/weather-background.js"></script>
-    <script defer src="/components/capitals-ticker.js?v=2"></script>
+    <script defer src="/components/capitals-ticker.js?v=3"></script>
     <script defer src="/pages/details/details.js?v=7"></script>
     <script defer src="/components/location-modal.js"></script>
-    <script defer src="/components/settings-modal.js?v=2"></script>
+    <script defer src="/components/settings-modal.js?v=3"></script>
     <title>Forecast - Open Arsad</title>
 </head>
 <body>
@@ -110,6 +110,13 @@
                         <option value="es">Español</option>
                         <option value="ar">العربية</option>
                     </select>
+                </section>
+                <section class="settings-section">
+                    <h3>Interface</h3>
+                    <label class="settings-label">
+                        <input type="checkbox" id="ticker-toggle" checked />
+                        <span>Capitals ticker</span>
+                    </label>
                 </section>
             </div>
             <div class="settings-modal-footer">

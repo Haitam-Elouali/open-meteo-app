@@ -6,12 +6,27 @@
 // app falls back to Open-Meteo's grid endpoint so the map still works. Either
 // way, changing the layer only swaps the overlay; the base map stays put.
 import { LAYER_ORDER, getLayer } from './layers.js';
-import { legendStops } from './palette.js';
-import { reshape, expandBBox } from './grid.js';
-import { createWeatherLayer } from './weather-layer.js';
+import { legendStops, buildLUT, layerRange } from './palette.js';
+import { reshape, minZoomForHeight } from './grid.js';
+import { createWeatherLayer, weatherPerf } from './weather-layer.js';
 
 const L = window.L;
 const OWM_BASE = 'https://tile.openweathermap.org/map';
+
+// Translate a key through the shared i18n dictionary, falling back to English
+// then to the key itself so dynamic UI (layer buttons, legend) stays correct
+// in every language the page is loaded in.
+function t(key) {
+  try {
+    const lang = (window.I18n && window.I18n.getLang && window.I18n.getLang()) || 'en';
+    const dict = (window.I18n && window.I18n.DICT) || {};
+    if (dict[lang] && dict[lang][key] != null) return dict[lang][key];
+    if (dict.en && dict.en[key] != null) return dict.en[key];
+  } catch (e) {
+    /* ignore */
+  }
+  return key;
+}
 
 // Map our layer ids to OpenWeatherMap tile layer names. OWM has no dedicated
 // radar tile set, so radar reuses the precipitation tiles.
@@ -24,21 +39,64 @@ const OWM_LAYERS = {
   wind: 'wind_new',
 };
 
-const GRID_COLS = 20;
-const GRID_ROWS = 20;
+// Compositing, OWM-style: base geography -> weather wash -> map outlines
+// (light_nolabels re-emphasized) -> labels. The map features sit ABOVE the
+// weather so coastlines/borders stay visible, and the labels stay crisp on top
+// of everything. Pane z-indexes: tilePane 200 (base+weather), geoPane 230
+// (outlines), labelPane 300 (labels).
+const GEO_OVERLAY_OPACITY = 0.4;
+
+// Grid resolution adapts to zoom: a world view (zoom 3-4) needs only a handful
+// of sample points to render a smooth bilinear wash, while a city view (zoom
+// 9+) wants the full resolution. Open-Meteo's free tier counts multi-location
+// requests per location, so a 6x6 world view costs 36 upstream "calls" vs 144
+// for 12x12 — a 4x cut in quota burn with no visible difference after the
+// bilinear smoothing in the tile renderer.
+const GRID_COLS = 12;
+const GRID_ROWS = 12;
 const DEBOUNCE_MS = 350;
+// Never hit the upstream more than once per interval while panning/zooming:
+// the overlay only needs to refresh once the map settles, and Open-Meteo's
+// free tier rate-limits bursts. Weather fields barely change minute to minute.
+// 12x12 = 144 sample points per refresh; the client reuses a cached grid while
+// panning inside its expanded bounds, so real refetches are rare.
+const MIN_GRID_INTERVAL_MS = 10000;
+// Upstream retry backoff. The minutely window is short (60s); the hourly and
+// daily windows are much longer — retrying a 503 every 60s for an hour would
+// just burn more of the (already exhausted) quota, so scale the wait by what
+// the server tells us.
+const RATE_LIMIT_RETRY_MS = 60000;
+const HOURLY_RETRY_MS = 10 * 60 * 1000; // hourly window: retry in 10 min
 
 const state = {
-  layer: 'temperature',
+  // Active weather layer id, or null for no overlay — OWM-style: the map
+  // opens showing just the base geography and the user picks a layer.
+  layer: null,
   basemap: 'map',
   lat: 31.63,
   lon: -8.0,
   zoom: 3,
+  // Selected timeline hour index into the grid's `hours` array (OWM-style
+  // time slider). Switching hours reshapes the cached grid locally — no
+  // upstream calls.
+  hour: 0,
+  // True once the timeline position has been chosen — by the user scrubbing,
+  // a ?hour= URL, or the initial current-time default. Once pinned, panning
+  // or refetching the grid never moves the scrubber by itself.
+  hourPinned: false,
 };
+
+// The server returns every layer's field in one payload; radar shares
+// precipitation's field, everything else maps to itself.
+function layerGroup(id) {
+  return id === 'radar' ? 'precipitation' : id;
+}
 
 let map;
 let baseMapLayer;
 let satelliteLayer;
+let geoOverlayLayer = null; // map outlines re-emphasized ABOVE the weather
+let labelsLayer = null; // labels/outlines rendered ABOVE the weather
 let weatherLayer = null;
 let weatherKind = null; // 'owm' | 'om'
 let owmKey = '';
@@ -47,6 +105,9 @@ let currentGrid = null;
 let debounceTimer = null;
 const gridCache = new Map();
 const FAIL_TTL_MS = 15000;
+let lastGridFetchAt = 0;
+let rateLimitRetryAt = 0;
+let retryTimer = null;
 
 const els = {};
 
@@ -61,8 +122,35 @@ async function init() {
   applyControlValues();
   fitMapLayout();
   window.addEventListener('resize', fitMapLayout);
+  // Keep the zoom-out floor in sync with the REAL container: fonts and the
+  // capitals ticker can change the header height after first paint, and on
+  // mobile the URL bar / orientation collapse and expand the viewport — all
+  // without a window resize. Observe the layout (and its chrome) so the floor
+  // is recomputed whenever the actual map height changes.
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => fitMapLayout());
+    const layout = document.querySelector('.map-layout');
+    const header = document.querySelector('.header');
+    const ticker = document.querySelector('.capitals-ticker');
+    if (layout) ro.observe(layout);
+    if (header) ro.observe(header);
+    if (ticker) ro.observe(ticker);
+  }
+  window.addEventListener('load', fitMapLayout);
+  window.addEventListener('orientationchange', () => setTimeout(fitMapLayout, 300));
   setWeatherLayer();
+  ensureLabelsLayer(); // keep labels/outlines above the weather overlay
   syncUrl();
+
+  // The header geolocation picker fires 'location-selected' when the user
+  // confirms a city — move the map there so the button actually does
+  // something on the map page.
+  document.addEventListener('location-selected', (e) => {
+    const { lat, lon } = (e && e.detail) || {};
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      map.setView([lat, lon], Math.max(map.getZoom(), 8));
+    }
+  });
 }
 
 function cacheEls() {
@@ -74,6 +162,11 @@ function cacheEls() {
   els.panelClose = document.getElementById('map-panel-close');
   els.panelOpen = document.getElementById('map-panel-open');
   els.backdrop = document.getElementById('map-modal-backdrop');
+  els.timeline = document.getElementById('map-timeline');
+  els.timelineSlider = document.getElementById('map-timeline-slider');
+  els.timelinePrev = document.getElementById('map-timeline-prev');
+  els.timelineNext = document.getElementById('map-timeline-next');
+  els.timelineTime = document.getElementById('map-timeline-time');
 }
 
 // Pull the (non-secret) frontend config from the server. The OpenWeatherMap key
@@ -90,35 +183,136 @@ async function loadConfig() {
   }
 }
 
+// Base maps are split into plain geography + a separate labels/outlines tile
+// layer that sits ON TOP of the weather wash — the same compositing OWM's
+// weathermap uses, so borders and place names stay crisp while the weather
+// layer stays transparent underneath them.
+const BASE_MAPS = {
+  map: {
+    base: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+    labels: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  },
+  satellite: {
+    base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    labels:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+  },
+};
+
 function initMap() {
   map = L.map('map', {
     center: [state.lat, state.lon],
     zoom: state.zoom,
     zoomControl: false,
+    // No attribution bar (the "Leaflet | © OpenStreetMap © CARTO" strip at the
+    // bottom) — the user wants the map chrome clean.
+    attributionControl: false,
+    // The weather data only exists between ±85° latitude; without bounds the
+    // map drags forever into empty space above/below the poles. The longitude
+    // bounds are huge-but-finite so horizontal world wrapping keeps working —
+    // Leaflet clamps only the latitude axis (see Leaflet issue #3081).
+    maxBounds: L.latLngBounds(L.latLng(-85, -99999), L.latLng(85, 99999)),
+    maxBoundsViscosity: 1.0,
   });
 
-  baseMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // Explicit z-order: weather below the map outlines, labels on top (like OWM's
+  // weathermap compositing).
+  map.createPane('geoPane');
+  map.getPane('geoPane').style.zIndex = '230';
+  map.createPane('labelPane');
+  map.getPane('labelPane').style.zIndex = '300';
+
+  const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
+  baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors',
+    attribution: BASE_MAPS.map.attribution,
   });
-  satelliteLayer = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
-  );
+  satelliteLayer = L.tileLayer(BASE_MAPS.satellite.base, {
+    maxZoom: 19,
+    attribution: BASE_MAPS.satellite.attribution,
+  });
+  // The same geography re-drawn ABOVE the weather wash (only for the "map"
+  // basemap) so coastlines and country borders show through the overlay.
+  geoOverlayLayer = L.tileLayer(BASE_MAPS.map.base, {
+    maxZoom: 19,
+    pane: 'geoPane',
+    opacity: GEO_OVERLAY_OPACITY,
+  });
 
   (state.basemap === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
+  if (state.basemap === 'map') geoOverlayLayer.addTo(map);
+  labelsLayer = L.tileLayer(def.labels, { maxZoom: 19, pane: 'labelPane' }).addTo(map);
+
+  // Debug/verification hooks (same pattern as the perf hooks): the live map
+  // instance, used to check the drag bounds clamp.
+  window.__map = map;
+
+  // Performance hooks for tuning the tile resolution / particle budget against
+  // the 60fps frame target. measureTileBatch() re-renders every visible weather
+  // tile and times the whole batch; __weatherPerf holds running per-tile stats.
+  window.__weatherPerf = weatherPerf;
+  window.__mapPerf = {
+    measureTileBatch: () =>
+      new Promise((resolve) => {
+        const t0 = performance.now();
+        const before = weatherPerf.renders;
+        let stable = 0;
+        let last = before;
+        (function poll(waits) {
+          if (waits > 40) {
+            resolve({ batchMs: -1, tilesRendered: weatherPerf.renders - before, timedOut: true });
+            return;
+          }
+          setTimeout(() => {
+            if (weatherPerf.renders === last) stable++;
+            else {
+              last = weatherPerf.renders;
+              stable = 0;
+            }
+            if (stable >= 2) {
+              resolve({
+                batchMs: Math.round((performance.now() - t0) * 10) / 10,
+                tilesRendered: weatherPerf.renders - before,
+                avgTileMs: Math.round(weatherPerf.avgMs * 100) / 100,
+              });
+            } else poll(waits + 1);
+          }, 25);
+        })(0);
+        weatherLayer.redraw();
+      }),
+  };
 
   map.on('moveend', () => {
     syncUrl();
+    // Never settle below the zoom floor (mobile pinch-outs, orientation
+    // changes, or a floor raised after the map already rendered).
+    enforceMinZoom();
     if (!usingOwm) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
     }
   });
+  map.on('zoomend', enforceMinZoom);
+}
+
+// Remove any weather overlay — toggling the active layer off returns to the
+// plain base map (OWM-style), with no data fetch needed.
+function clearWeatherLayer() {
+  if (weatherLayer && map) map.removeLayer(weatherLayer);
+  weatherLayer = null;
+  weatherKind = null;
 }
 
 // Decide which backend to use and (re)create the overlay for the active layer.
 function setWeatherLayer() {
+  if (state.layer === null) {
+    clearWeatherLayer();
+    hideStatus();
+    return;
+  }
   if (owmKey) {
     usingOwm = true;
     setOwmLayer();
@@ -128,13 +322,21 @@ function setWeatherLayer() {
   }
 }
 
+// Per-layer tile opacity for the OWM (pre-rendered) tile path. The fallback
+// Open-Meteo renderer applies per-layer `opacity` itself; here OWM's baked
+// tiles need an explicit layer-opacity bump so e.g. clouds read as a solid
+// white blanket in both modes (the old flat 0.65 washed them out).
+const OWM_LAYER_OPACITY = {
+  clouds: 0.9,
+};
+
 function setOwmLayer() {
   if (weatherLayer && weatherKind === 'owm') map.removeLayer(weatherLayer);
   const name = OWM_LAYERS[state.layer] || 'temp_new';
   const url = `${OWM_BASE}/${name}/{z}/{x}/{y}.png?appid=${encodeURIComponent(owmKey)}`;
   weatherLayer = L.tileLayer(url, {
     maxZoom: 18,
-    opacity: 0.65,
+    opacity: OWM_LAYER_OPACITY[state.layer] || 0.65,
     attribution: '&copy; OpenWeatherMap',
   });
   weatherKind = 'owm';
@@ -143,16 +345,18 @@ function setOwmLayer() {
   weatherLayer.bringToFront();
 }
 
-function ensureOpenMeteoLayer() {
+function ensureOpenMeteoLayer(forceFetch = false) {
   if (weatherLayer && weatherKind === 'om') {
-    refreshGrid();
+    refreshGrid(forceFetch);
     return;
   }
+  // Re-selecting a layer after deselecting it needs a fresh overlay (the old
+  // one was removed when the layer was toggled off).
   weatherLayer = createWeatherLayer(() => currentGrid, () => state.layer);
   weatherKind = 'om';
   weatherLayer.addTo(map);
   weatherLayer.bringToFront();
-  refreshGrid();
+  refreshGrid(forceFetch);
 }
 
 function buildLayerButtons() {
@@ -162,7 +366,7 @@ function buildLayerButtons() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'map-layer-btn' + (id === state.layer ? ' is-active' : '');
-    btn.textContent = def.label;
+    btn.textContent = t(`map.layer.${id}`);
     btn.dataset.layer = id;
     btn.addEventListener('click', () => setLayer(id));
     els.layers.appendChild(btn);
@@ -170,14 +374,94 @@ function buildLayerButtons() {
 }
 
 function setLayer(id) {
-  if (id === state.layer) return;
+  // OWM-style toggle: clicking the active layer deselects it, leaving just the
+  // base map (no overlay, no legend, no timeline).
+  if (id === state.layer) {
+    state.layer = null;
+    els.layers.querySelectorAll('.map-layer-btn').forEach((b) => b.classList.remove('is-active'));
+    if (els.legend) els.legend.hidden = true;
+    if (els.timeline) els.timeline.hidden = true;
+    clearWeatherLayer();
+    hideStatus();
+    syncUrl();
+    return;
+  }
   state.layer = id;
   els.layers.querySelectorAll('.map-layer-btn').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.layer === id)
   );
+  // OWM-style: turning a layer on starts the timeline at the current time.
+  state.hourPinned = false;
+  if (currentGrid && currentGrid.hours && currentGrid.hours.length) {
+    state.hour = hourIndexForNow(currentGrid.hours);
+    state.hourPinned = true;
+    currentGrid.hour = state.hour;
+    applyLayerToGrid(currentGrid, state.layer);
+    if (weatherLayer) weatherLayer.redraw();
+  }
   updateLegend();
   if (usingOwm) setOwmLayer();
-  else refreshGrid();
+  else ensureOpenMeteoLayer(true); // explicit user action: fetch the new layer now
+  syncUrl();
+}
+
+// --- Timeline (OWM-style forecast scrubber) --------------------------------
+// The grid payload carries a full 48h (or 24h archive) window for every layer,
+// so scrubbing time is a pure client-side reshape — zero upstream calls, which
+// keeps the free-tier quota intact.
+
+// The timeline index closest to the current time — the OWM-style default
+// position whenever a layer is turned on (or loaded without a pinned hour).
+function hourIndexForNow(hours) {
+  const now = Date.now();
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < hours.length; i++) {
+    const t = new Date(hours[i]).getTime();
+    if (!Number.isFinite(t)) continue;
+    const d = Math.abs(t - now);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function updateTimelineTime() {
+  const hours = currentGrid && currentGrid.hours;
+  if (!hours || !els.timelineTime) return;
+  els.timelineTime.textContent = hours[state.hour] ? hours[state.hour].replace('T', ' ') : '';
+}
+
+function buildTimeline() {
+  if (!els.timeline) return;
+  if (state.layer === null || usingOwm || !currentGrid || !currentGrid.hours || currentGrid.hours.length <= 1) {
+    els.timeline.hidden = true;
+    return;
+  }
+  const hours = currentGrid.hours;
+  els.timelineSlider.min = '0';
+  els.timelineSlider.max = String(hours.length - 1);
+  els.timelineSlider.step = '1';
+  els.timelineSlider.value = String(state.hour);
+  els.timeline.hidden = false;
+  updateTimelineTime();
+}
+
+// Switch the displayed forecast hour. The grid holds every hour already, so
+// this never touches the network.
+function setHour(idx) {
+  if (!currentGrid || !currentGrid.hours || !currentGrid.hours.length) return;
+  const h = Math.max(0, Math.min(currentGrid.hours.length - 1, idx));
+  if (h === state.hour) return;
+  state.hour = h;
+  state.hourPinned = true; // the user chose this time; keep it across refetches
+  currentGrid.hour = h;
+  applyLayerToGrid(currentGrid, state.layer);
+  weatherLayer.redraw();
+  if (els.timelineSlider) els.timelineSlider.value = String(h);
+  updateTimelineTime();
   syncUrl();
 }
 
@@ -195,6 +479,17 @@ function bindControls() {
     els.panel.hidden = false;
     els.panelOpen.hidden = true;
   });
+
+  els.timelineSlider.addEventListener('input', () => setHour(Number(els.timelineSlider.value)));
+  els.timelinePrev.addEventListener('click', () => setHour(state.hour - 3));
+  els.timelineNext.addEventListener('click', () => setHour(state.hour + 3));
+}
+
+// Labels/outlines always render on top of the weather overlay.
+function ensureLabelsLayer() {
+  if (labelsLayer) map.removeLayer(labelsLayer);
+  const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
+  labelsLayer = L.tileLayer(def.labels, { maxZoom: 19, pane: 'labelPane' }).addTo(map);
 }
 
 function setBasemap(which) {
@@ -202,7 +497,11 @@ function setBasemap(which) {
   state.basemap = which;
   map.removeLayer(which === 'satellite' ? baseMapLayer : satelliteLayer);
   (which === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
-  if (weatherLayer) weatherLayer.bringToFront();
+  // The map-outlines-above-weather layer is for the "map" basemap only; on
+  // satellite the imagery stays below the weather with labels on top.
+  if (which === 'map') geoOverlayLayer.addTo(map);
+  else map.removeLayer(geoOverlayLayer);
+  ensureLabelsLayer();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
   );
@@ -211,25 +510,32 @@ function setBasemap(which) {
 
 function parseUrl() {
   const p = new URLSearchParams(location.search);
-  if (p.get('layer')) state.layer = p.get('layer');
+  // 'none' (or an unknown id) means no overlay — the OWM-style default.
+  const layerParam = p.get('layer');
+  if (layerParam && layerParam !== 'none' && LAYER_ORDER.includes(layerParam)) {
+    state.layer = layerParam;
+  }
   if (p.get('basemap')) state.basemap = p.get('basemap');
   if (p.get('lat')) state.lat = Number(p.get('lat'));
   if (p.get('lon')) state.lon = Number(p.get('lon'));
   if (p.get('zoom')) state.zoom = Number(p.get('zoom'));
+  // Clamp the requested zoom to the absolute floor immediately so the initial
+  // view can never open on a whole-world (blank-border) view even before the
+  // dynamic height-based min-zoom is computed in fitMapLayout().
+  state.zoom = Math.max(2, Math.min(18, Math.round(state.zoom) || 3));
+  const h = Number(p.get('hour'));
+  if (Number.isFinite(h) && h >= 0) {
+    state.hour = Math.floor(h);
+    state.hourPinned = true; // explicit ?hour= wins over the current-time default
+  }
 }
 
 // Keep requested bounds within valid geographic ranges so we never send
-// out-of-range coordinates to the weather API.
-function clampBBox(b) {
-  let north = Math.min(85, Math.max(-85, b.north));
-  let south = Math.min(85, Math.max(-85, b.south));
-  if (north < south) [north, south] = [south, north];
-  let west = Math.max(-180, Math.min(180, b.west));
-  let east = Math.max(-180, Math.min(180, b.east));
-  if (west > east) [west, east] = [-180, 180];
-  return { north, south, west, east };
-}
-
+// out-of-range coordinates to the weather API. Viewports that wrap the
+// antimeridian (or are world-wide) cannot be expressed as one non-wrapping
+// window, so they request the whole world [-180, 180] — the sampling code then
+// normalizes longitudes back into that range. lat/lon must be clamped AFTER
+// expanding, otherwise the padding pushes coordinates out of range again.
 // Make the map fill the viewport below the header + ticker chrome, and keep the
 // control panel sitting just under that chrome with a little breathing room.
 function fitMapLayout() {
@@ -254,104 +560,330 @@ function fitMapLayout() {
     els.panel.style.right = '0';
     els.panel.style.bottom = '0';
   }
+
+  // Zoom-out floor: keep the visible latitude span inside ±85° so the user can
+  // never zoom out into the empty strips at the top/bottom (the basemap and
+  // weather data both end at the pole line). Recomputed on every resize from
+  // the ACTUAL container height — a short phone viewport can zoom out further
+  // than a tall desktop monitor without showing blanks.
+  enforceMinZoom();
 }
 
-// Validate the existing grid still covers a viewport (same layer) so we can skip
-// a redundant, and potentially rate-limited, upstream request while panning.
-function gridCovers(grid, bbox) {
-  return (
-    grid.north >= bbox.north &&
-    grid.south <= bbox.south &&
-    grid.west <= bbox.west &&
-    grid.east >= bbox.east
-  );
+// Recompute + apply the zoom-out floor from the map container's REAL size.
+// Separate from fitMapLayout so it can also run on every zoom/pan settle,
+// orientation change and container resize (header/ticker height changes,
+// mobile URL-bar collapse): the floor only helps if it tracks the container
+// the user is actually looking at.
+function enforceMinZoom() {
+  if (!map || !map.setMinZoom) return;
+  const layout = document.querySelector('.map-layout');
+  if (!layout) return;
+  const header = document.querySelector('.header');
+  const ticker = document.querySelector('.capitals-ticker');
+  const top = (header ? header.offsetHeight : 0) + (ticker ? ticker.offsetHeight : 0);
+  const h = layout.clientHeight || window.innerHeight - top || 600;
+  const minZ = minZoomForHeight(h);
+  if (map.getMinZoom && map.getMinZoom() !== minZ) map.setMinZoom(minZ);
+  // Force the view inside the allowed range explicitly (not relying on
+  // Leaflet's setMinZoom auto-zoom): without this a URL like ?zoom=1, or a
+  // floor raised after the map settled, would keep the map zoomed out into
+  // the blank strips. animate:false so mobile pinch/pan settle instantly.
+  if (map.getZoom() < minZ) {
+    map.setView(map.getCenter(), minZ, { animate: false });
+  }
+  // The height floor only bounds the visible SPAN, not its POSITION — on a
+  // tall viewport at low zoom the span can exceed 170°, so panning toward a
+  // pole pushes the far edge past ±85° where the basemap and weather data
+  // end, leaving the empty strip at the bottom (or top). Clamp the CENTER so
+  // the whole visible latitude range stays inside ±85°: the weather then
+  // covers the ENTIRE map with no void border, at every zoom.
+  const span = (170.1 * h) / (256 * Math.pow(2, map.getZoom()));
+  const maxCenter = Math.max(0, 85 - span / 2);
+  const center = map.getCenter();
+  if (center && Number.isFinite(center.lat) && map.panTo) {
+    if (center.lat > maxCenter) map.panTo([maxCenter, center.lng], { animate: false });
+    else if (center.lat < -maxCenter) map.panTo([-maxCenter, center.lng], { animate: false });
+  }
 }
 
-async function refreshGrid() {
-  showStatus('Loading weather…');
-  const b = map.getBounds();
-  const bbox = expandBBox(
-    clampBBox({
-      north: b.getNorth(),
-      south: b.getSouth(),
-      west: b.getWest(),
-      east: b.getEast(),
-    }),
-    0.3
-  );
+// Point the grid's active values at the requested layer (from the shared
+// multi-layer payload) AND the selected timeline hour, then reshape them for
+// sampling. No upstream call.
+function applyLayerToGrid(grid, layerId) {
+  const g = layerGroup(layerId);
+  const h = grid.hour || 0;
+  const arr = grid.fields && grid.fields[g];
+  if (arr && arr[0] && Array.isArray(arr[0])) {
+    // Per-location hourly arrays (timeline payload): pick the selected hour
+    // and reshape into the 2D grid the tile sampler expects.
+    grid.values = reshape(
+      arr.map((locArr) => (locArr && locArr[h] != null ? locArr[h] : null)),
+      grid.cols,
+      grid.rows
+    );
+  } else if (arr) {
+    grid.values = reshape(arr, grid.cols, grid.rows);
+  }
+  grid.layer = layerId;
+}
 
-  const cacheKey = `${state.layer}:${bbox.north.toFixed(1)}:${bbox.south.toFixed(
-    1
-  )}:${bbox.west.toFixed(1)}:${bbox.east.toFixed(1)}`;
+// One-shot retry after a rate limit — scheduled only when a limit actually
+// happens, so no background timer keeps running (or blocking tests) otherwise.
+function scheduleRetry(waitMs) {
+  clearTimeout(retryTimer);
+  const wait = Math.min(waitMs || RATE_LIMIT_RETRY_MS, 60 * 60 * 1000);
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (rateLimitRetryAt && Date.now() >= rateLimitRetryAt) {
+      rateLimitRetryAt = 0;
+      refreshGrid(true);
+    }
+  }, wait);
+}
+
+// forceFetch bypasses the pan throttle: layer switches and rate-limit retries
+// are explicit actions that must fetch right away, while pan/zoom refreshes are
+// gated so continuous dragging cannot spam the upstream.
+// The ENTIRE map is served from ONE full-world grid fetched once per session
+// (OWM-style: a single global dataset — panning and zooming never reload it).
+// Open-Meteo's multi-location API returns every point in one upstream call;
+// the server caps the point count to its URL budget (~120 points) and bilinear
+// sampling smooths that into a wash covering the whole world at any zoom.
+const WORLD_BBOX = { north: 85, south: -85, west: -180, east: 180 };
+const WORLD_GRID_COLS = 12;
+const WORLD_GRID_ROWS = 12;
+const WORLD_CACHE_KEY = 'world';
+
+async function refreshGrid(forceFetch = false) {
+  // No overlay means no data: with every layer deselected (OWM-style default)
+  // the map is pure base geography and never needs a grid fetch.
+  if (state.layer === null) return;
 
   try {
+    // Once the full-world grid exists, EVERY viewport is served locally:
+    // panning, zooming and layer switches never touch the upstream again.
+    if (
+      currentGrid &&
+      currentGrid.fields &&
+      currentGrid.fields[layerGroup(state.layer)]
+    ) {
+      applyLayerToGrid(currentGrid, state.layer);
+      weatherLayer.redraw();
+      buildTimeline();
+      hideStatus();
+      return;
+    }
+
+    const cacheKey = WORLD_CACHE_KEY;
     const cached = gridCache.get(cacheKey);
     if (cached) {
       if (cached.__error) {
-        if (Date.now() - cached.t < FAIL_TTL_MS) {
-          showStatus('Weather layer temporarily unavailable — retrying soon');
+        // Error entries live as long as the wait we scheduled, otherwise layer
+        // switches re-trigger a fetch while the upstream is still refusing.
+        const ttl = Math.max(cached.waitMs || 0, cached.rateLimited ? RATE_LIMIT_RETRY_MS : FAIL_TTL_MS);
+        if (Date.now() - cached.t < ttl) {
+          if (!currentGrid) showStatus(cached.statusMsg || 'Weather layer temporarily unavailable — retrying soon');
           return;
         }
         gridCache.delete(cacheKey);
       } else {
         currentGrid = cached;
+        applyLayerToGrid(currentGrid, state.layer);
         weatherLayer.redraw();
+        buildTimeline();
         hideStatus();
         return;
       }
     }
 
-    if (currentGrid && currentGrid.layer === state.layer && gridCovers(currentGrid, bbox)) {
-      weatherLayer.redraw();
-      hideStatus();
+    // Throttle upstream calls while the user is actively panning/zooming.
+    const wait = lastGridFetchAt + MIN_GRID_INTERVAL_MS - Date.now();
+    if (!forceFetch && wait > 0) {
+      showStatus('Loading weather…');
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(refreshGrid, wait);
       return;
     }
 
+    // Fetch the WHOLE map in one request. cols/rows hit the server's 12x12
+    // cap; fitGridRequest scales the point count down to the URL budget.
+    showStatus('Loading weather…');
     const params = new URLSearchParams({
       layer: state.layer,
-      north: bbox.north.toFixed(4),
-      south: bbox.south.toFixed(4),
-      west: bbox.west.toFixed(4),
-      east: bbox.east.toFixed(4),
-      cols: GRID_COLS,
-      rows: GRID_ROWS,
+      north: WORLD_BBOX.north,
+      south: WORLD_BBOX.south,
+      west: WORLD_BBOX.west,
+      east: WORLD_BBOX.east,
+      cols: WORLD_GRID_COLS,
+      rows: WORLD_GRID_ROWS,
     });
 
+    lastGridFetchAt = Date.now();
     const res = await fetch(`/api/map-grid?${params.toString()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.error || `HTTP ${res.status}`);
+      if (body.retryAfter) err.retryAfter = body.retryAfter;
+      throw err;
+    }
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+
+    // The server adapts the grid to its URL budget and quantizes the bbox, so
+    // reshape with the dimensions it actually returned and store ITS bbox —
+    // sampling against the requested bbox would displace the whole field.
+    const rCols = data.cols || GRID_COLS;
+    const rRows = data.rows || GRID_ROWS;
+    const hours = data.hours && data.hours.length ? data.hours : null;
+    // Timeline position: keep a pinned hour (user scrub / ?hour= URL) clamped
+    // to the loaded window, otherwise default to the CURRENT time — the
+    // OWM-style "now" position whenever a layer is turned on.
+    if (hours) {
+      if (state.hourPinned) {
+        state.hour = Math.max(0, Math.min(state.hour, hours.length - 1));
+      } else {
+        state.hour = hourIndexForNow(hours);
+        state.hourPinned = true;
+      }
+    } else {
+      state.hour = 0;
+    }
     const grid = {
-      north: bbox.north,
-      south: bbox.south,
-      west: bbox.west,
-      east: bbox.east,
-      cols: GRID_COLS,
-      rows: GRID_ROWS,
-      values: reshape(data.values, GRID_COLS, GRID_ROWS),
+      north: data.north != null ? data.north : WORLD_BBOX.north,
+      south: data.south != null ? data.south : WORLD_BBOX.south,
+      west: data.west != null ? data.west : WORLD_BBOX.west,
+      east: data.east != null ? data.east : WORLD_BBOX.east,
+      cols: rCols,
+      rows: rRows,
+      hours,
+      hour: state.hour,
+      // Every layer's field (per-location x per-hour arrays for the timeline;
+      // layer switches reshape the active one locally, so one upstream call
+      // serves all six layers across all hours).
+      fields: data.fields || { [layerGroup(state.layer)]: data.values },
+      windSpeed: data.windSpeed || null,
+      windDir: data.windDir || null,
       layer: state.layer,
     };
-    if (data.windSpeed) grid.windSpeed = reshape(data.windSpeed, GRID_COLS, GRID_ROWS);
-    if (data.windDir) grid.windDir = reshape(data.windDir, GRID_COLS, GRID_ROWS);
+    applyLayerToGrid(grid, state.layer);
     currentGrid = grid;
-    gridCache.set(cacheKey, grid);
+    gridCache.set(WORLD_CACHE_KEY, grid);
     weatherLayer.redraw();
+    buildTimeline();
     hideStatus();
   } catch (err) {
-    gridCache.set(cacheKey, { __error: true, t: Date.now() });
-    showStatus(`Map data unavailable: ${err.message}`);
+    const msg = String(err.message || err);
+    const rateLimited = /503|429|rate\s*limit|too\s*many|minutely|hourly|daily/i.test(msg);
+    // Hourly/daily windows are long: back off hard instead of hammering the
+    // exhausted quota every minute. err.retryAfter comes from the server's
+    // 503 body when it knows the window length.
+    const hourly = /hourly|daily|next hour|tomorrow/i.test(msg);
+    const waitMs = err && err.retryAfter ? err.retryAfter * 1000 : hourly ? HOURLY_RETRY_MS : RATE_LIMIT_RETRY_MS;
+    const statusMsg = hourly
+      ? 'Open-Meteo free-tier quota reached — retrying in ~10 minutes'
+      : 'Weather data temporarily unavailable — retrying soon';
+    gridCache.set(WORLD_CACHE_KEY, { __error: true, t: Date.now(), rateLimited, waitMs, statusMsg });
+    if (rateLimited) {
+      rateLimitRetryAt = Date.now() + waitMs;
+      scheduleRetry(waitMs);
+      showStatus(statusMsg);
+    } else {
+      showStatus(`Map data unavailable: ${msg}`);
+    }
   }
 }
 
 function updateLegend() {
-  const stops = legendStops(state.layer, 7);
+  // No layer selected: no legend (OWM-style plain base map).
+  if (state.layer === null) {
+    if (els.legend) els.legend.hidden = true;
+    return;
+  }
+  els.legend.hidden = false;
   const def = getLayer(state.layer);
-  const grad = stops.map((s) => s.color).join(',');
-  const ticks = stops.map((s) => formatTick(s.value, def.unit)).join('</span><span>');
+  // Wind speeds arrive in km/h from the grid; the legend can display them in
+  // the app's chosen wind unit (km/h default, or m/s / kt from settings) like
+  // OWM. The palette range and bar stay in km/h — only the tick labels convert.
+  const isWind = state.layer === 'wind';
+  const windUnit = isWind ? Settings.get('windUnit', 'kmh') : null;
+  const toDisplay = isWind
+    ? (kmh) => (windUnit === 'ms' ? kmh / 3.6 : windUnit === 'kt' ? kmh / 1.852 : kmh)
+    : (v) => v;
+  const unitLabel = isWind
+    ? windUnit === 'ms'
+      ? 'm/s'
+      : windUnit === 'kt'
+        ? 'kt'
+        : 'km/h'
+    : def.unit;
+
+  const { min, max } = layerRange(state.layer);
+  // Ticks: layers may declare exact positions (`ticks`), otherwise sample the
+  // palette evenly. Each tick is placed proportionally so it sits under the
+  // color it names.
+  const tickVals = def.ticks || legendStops(state.layer, 7).map((s) => s.value);
+  const ticks = tickVals
+    .map((v) => {
+      const t = max === min ? 0 : (v - min) / (max - min);
+      const left = Math.max(0, Math.min(100, t * 100));
+      return `<span class="map-legend__tick" style="left:${left.toFixed(1)}%">${formatTick(toDisplay(v), unitLabel)}</span>`;
+    })
+    .join('');
+
   els.legend.innerHTML = `
-    <div class="map-legend__title">${def.label} (${def.unit})</div>
-    <div class="map-legend__bar" style="background:linear-gradient(90deg, ${grad})"></div>
-    <div class="map-legend__ticks"><span>${ticks}</span></div>`;
+    <div class="map-legend__title">${t(`map.layer.${state.layer}`)} (${unitLabel})</div>
+    <div class="map-legend__bar"></div>
+    <div class="map-legend__ticks">${ticks}</div>`;
+
+  // Collision-cull tick labels so dense legends (radar's low end) never
+  // overflow into each other: keep the first label, then drop any label whose
+  // rendered box would overlap the previous kept one. The bar itself always
+  // shows the full gradient, so dropped numbers lose no information.
+  let prevRight = -Infinity;
+  els.legend.querySelectorAll('.map-legend__tick').forEach((s) => {
+    const r = s.getBoundingClientRect();
+    if (r.left < prevRight) s.style.display = 'none';
+    else prevRight = r.right;
+  });
+
+  // Draw the bar from the SAME lookup table the tiles use, so the legend shows
+  // exactly what the map paints. The old CSS linear-gradient interpolated
+  // colors differently from the tile LUT (premultiplied vs straight alpha) —
+  // most visible on radar, where the transparent low end turned into a dark
+  // green in the bar while the map showed light green. Falls back to the CSS
+  // gradient in headless environments without a 2D canvas context.
+  const lut = buildLUT(state.layer, 256);
+  const lutLen = lut.length / 4;
+  const barW = 440;
+  const barH = 24;
+  const bar = document.createElement('canvas');
+  bar.width = barW;
+  bar.height = barH;
+  const bctx = bar.getContext && bar.getContext('2d');
+  if (bctx && bctx.createImageData) {
+    const img = bctx.createImageData(barW, barH);
+    for (let x = 0; x < barW; x++) {
+      const li = Math.round((x / (barW - 1)) * (lutLen - 1)) | 0;
+      const r = lut[li * 4];
+      const g = lut[li * 4 + 1];
+      const b = lut[li * 4 + 2];
+      const a = lut[li * 4 + 3];
+      for (let y = 0; y < barH; y++) {
+        const idx = (y * barW + x) * 4;
+        img.data[idx] = r;
+        img.data[idx + 1] = g;
+        img.data[idx + 2] = b;
+        img.data[idx + 3] = a;
+      }
+    }
+    bctx.putImageData(img, 0, 0);
+    els.legend.querySelector('.map-legend__bar').appendChild(bar);
+  } else {
+    const grad = legendStops(state.layer, 32)
+      .map((s) => s.color)
+      .join(',');
+    els.legend.querySelector('.map-legend__bar').style.background = `linear-gradient(90deg, ${grad})`;
+  }
 }
 
 function formatTick(v, unit) {
@@ -361,12 +893,15 @@ function formatTick(v, unit) {
 
 function syncUrl() {
   const p = new URLSearchParams();
-  p.set('layer', state.layer);
+  p.set('layer', state.layer || 'none');
   p.set('basemap', state.basemap);
   const c = map.getCenter();
   p.set('lat', c.lat.toFixed(4));
   p.set('lon', c.lng.toFixed(4));
   p.set('zoom', String(map.getZoom()));
+  if (state.layer && currentGrid && currentGrid.hours && currentGrid.hours.length) {
+    p.set('hour', String(state.hour));
+  }
   history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
 }
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 // Uses the built-in global fetch (Node 18+). No external HTTP dependency.
 
@@ -7,6 +8,30 @@ const path = require('path');
 // air-quality data change slowly, so caching cuts latency and external load.
 const apiCache = new Map();
 const CACHE_TTL_MS = 10 * 60 * 1000;
+
+// The weather-map grid is expensive against Open-Meteo's free tier (each
+// refresh samples ~36-144 locations), so its responses are ALSO persisted to
+// disk with a 1-hour TTL. Without this, every server restart forced a fresh
+// upstream fetch for the same viewport — burning quota for zero benefit.
+const GRID_DISK_CACHE = path.join(__dirname, '.grid-cache.json');
+const GRID_DISK_TTL_MS = 60 * 60 * 1000;
+let gridDiskCache = new Map();
+try {
+  const raw = JSON.parse(fs.readFileSync(GRID_DISK_CACHE, 'utf8'));
+  const now = Date.now();
+  for (const [k, v] of Object.entries(raw)) {
+    if (v && v.expires > now) gridDiskCache.set(k, v);
+  }
+} catch (e) {
+  // First boot or corrupt file: start empty.
+}
+function persistGridDiskCache() {
+  try {
+    fs.writeFileSync(GRID_DISK_CACHE, JSON.stringify(Object.fromEntries(gridDiskCache)));
+  } catch (e) {
+    // Best-effort: a failed write must never break the server.
+  }
+}
 
 async function cachedFetchJson(urlString, options) {
   const now = Date.now();
@@ -17,7 +42,7 @@ async function cachedFetchJson(urlString, options) {
   try {
     r = await fetch(urlString, options);
   } catch (e) {
-    return { error: `upstream request failed: ${e?.message || e}` };
+    return { error: `upstream request failed: ${e?.message || e}`, status: 0 };
   }
   let data;
   try {
@@ -25,7 +50,13 @@ async function cachedFetchJson(urlString, options) {
   } catch {
     return { error: `upstream returned non-JSON (status ${r.status})`, status: r.status };
   }
-  if (r.ok) apiCache.set(urlString, { expires: now + CACHE_TTL_MS, data });
+  if (r.ok) {
+    apiCache.set(urlString, { expires: now + CACHE_TTL_MS, data });
+  } else if (data && typeof data === 'object' && !data.status) {
+    // Preserve the upstream HTTP status so callers can tell a rate limit (429)
+    // from a hard failure instead of surfacing everything as a generic 502.
+    data.status = r.status;
+  }
   return data;
 }
 
@@ -96,6 +127,16 @@ app.get('/settings', (req, res) => {
 
 app.get('/map', (req, res) => {
   res.sendFile(path.join(__dirname, 'src', 'pages', 'map', 'index.html'));
+});
+
+app.get('/api/countries', (req, res) => {
+  try {
+    const citiesData = require('./lib/cities-data');
+    const countries = Object.keys(citiesData.CITIES_BY_COUNTRY).sort();
+    res.json({ countries });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
 });
 
 // Proxy open-meteo
@@ -211,7 +252,6 @@ app.get('/api/archive', async (req, res) => {
     url.searchParams.append('hourly', 'surface_pressure');
     url.searchParams.append('hourly', 'cloud_cover');
     url.searchParams.append('hourly', 'uv_index');
-    url.searchParams.append('hourly', 'shortwave_radiation');
 
     const data = await cachedFetchJson(url.toString());
     res.json({ data });
@@ -346,6 +386,24 @@ app.get('/api/forecast', async (req, res) => {
   }
 });
 
+// --- Weather-grid request sizing -------------------------------------------
+// Pure sizing helpers live in ./api/map-grid-helpers so they can be unit-tested
+// without booting the server. They keep upstream URLs short (no 414->502) and
+// the quantized bbox inside valid coordinate ranges (no 502 from out-of-range
+// lat/lon).
+const { fitGridRequest } = require('./api/map-grid-helpers');
+
+// True when an upstream failure object is a rate limit (429 — minutely OR
+// daily). Either way it is transient and worth a retry-after.
+function isRateLimited(d) {
+  if (!d || Array.isArray(d) || !d.error) return false;
+  const msg = String(d.reason || d.error || '');
+  return (
+    d.status === 429 ||
+    /rate\s*limit|too\s*many|minutely|request limit|try again|daily api/i.test(msg)
+  );
+}
+
 // Weather-map grid: samples an Open-Meteo variable across a bounding box and
 // returns a row-major 2D grid of values that the client renders as transparent
 // overlay tiles. For a past `date` it uses the archive API; otherwise the
@@ -357,12 +415,15 @@ app.get('/api/map-grid', async (req, res) => {
     let south = parseFloat(req.query.south);
     let west = parseFloat(req.query.west);
     let east = parseFloat(req.query.east);
-    const cols = Math.min(Math.max(parseInt(req.query.cols, 10) || 32, 4), 64);
-    const rows = Math.min(Math.max(parseInt(req.query.rows, 10) || 32, 4), 64);
 
     if ([north, south, west, east].some((v) => !Number.isFinite(v))) {
       return res.status(400).json({ error: 'north, south, west and east are required' });
     }
+
+    // 12x12 = 144 points per refresh: fine for a bilinear-interpolated overlay
+    // and keeps each refresh cheap against Open-Meteo's free-tier quota.
+    let cols = Math.min(Math.max(parseInt(req.query.cols, 10) || 12, 4), 12);
+    let rows = Math.min(Math.max(parseInt(req.query.rows, 10) || 12, 4), 12);
 
     // Clamp to valid geographic ranges. The client expands the viewport before
     // requesting, which can push coordinates past the poles / antimeridian;
@@ -381,146 +442,109 @@ app.get('/api/map-grid', async (req, res) => {
       east = 180;
     }
 
-    const LAYER_VARS = {
-      temperature: ['temperature_2m'],
-      precipitation: ['precipitation'],
-      radar: ['precipitation'],
-      clouds: ['cloud_cover'],
-      pressure: ['pressure_msl'],
-      wind: ['wind_speed_10m', 'wind_direction_10m'],
+    // One upstream call fetches EVERY layer's field at once (multi-location
+    // requests count once per call, and Open-Meteo's free tier has an hourly
+    // limit — fetching per-layer was the reason every layer switch after the
+    // first 503'd). The client then switches layers purely from this cached
+    // payload: zero extra upstream calls.
+    const ALL_FIELDS = [
+      'temperature_2m',
+      'precipitation',
+      'cloud_cover',
+      'pressure_msl',
+      'wind_speed_10m',
+      'wind_direction_10m',
+    ];
+    // The archive API has no pressure_msl for hourly data; surface_pressure is
+    // the closest equivalent, otherwise the pressure layer would render empty
+    // for past dates.
+    const ALL_FIELDS_ARCHIVE = [
+      'temperature_2m',
+      'precipitation',
+      'cloud_cover',
+      'surface_pressure',
+      'wind_speed_10m',
+      'wind_direction_10m',
+    ];
+    // Which response group each layer's `values` comes from. radar and
+    // precipitation share the same precipitation field.
+    const LAYER_GROUP = {
+      temperature: 'temperature',
+      precipitation: 'precipitation',
+      radar: 'precipitation',
+      clouds: 'clouds',
+      pressure: 'pressure',
+      wind: 'wind',
     };
-    const fields = LAYER_VARS[layer];
-    if (!fields) return res.status(400).json({ error: 'unknown layer' });
-
-    const latArr = [];
-    const lonArr = [];
-    for (let r = 0; r < rows; r++) {
-      const lat = north + (south - north) * (rows === 1 ? 0 : r / (rows - 1));
-      for (let c = 0; c < cols; c++) {
-        const lon = west + (east - west) * (cols === 1 ? 0 : c / (cols - 1));
-        latArr.push(Number(lat.toFixed(4)));
-        lonArr.push(Number(lon.toFixed(4)));
-      }
-    }
+    const group = LAYER_GROUP[layer] || 'temperature';
 
     const date = req.query.date ? parseInt(req.query.date, 10) : null;
     const nowSec = Math.floor(Date.now() / 1000);
     const useArchive = date !== null && date < nowSec - 60;
-    const base = useArchive
-      ? 'https://archive-api.open-meteo.com/v1/archive'
-      : 'https://api.open-meteo.com/v1/forecast';
 
-    const url = new URL(base);
-    url.searchParams.set('latitude', latArr.join(','));
-    url.searchParams.set('longitude', lonArr.join(','));
-    url.searchParams.set('timezone', 'UTC');
-    if (useArchive) {
-      const d = new Date(date * 1000).toISOString().slice(0, 10);
-      url.searchParams.set('start_date', d);
-      url.searchParams.set('end_date', d);
-      fields.forEach((f) => url.searchParams.append('hourly', f));
-    } else {
-      fields.forEach((f) => url.searchParams.append('current', f));
+    const fields = useArchive ? ALL_FIELDS_ARCHIVE : ALL_FIELDS;
+
+    // Size the request to the URL budget (fixes the 414 -> 502 on world / low
+    // zoom views) while keeping point counts in check for the free-tier quota.
+    const fitted = fitGridRequest(north, south, west, east, cols, rows, fields, useArchive, date);
+    cols = fitted.cols;
+    rows = fitted.rows;
+    const latArr = fitted.latArr;
+    const lonArr = fitted.lonArr;
+
+    // Disk cache: same quantized upstream URL means the same data — check it
+    // BEFORE the upstream so a server restart doesn't refetch the same viewport
+    // (the biggest remaining quota sink during development/deploys).
+    const upstreamUrl = fitted.url.toString();
+    const diskHit = gridDiskCache.get(upstreamUrl);
+    if (diskHit && diskHit.expires > Date.now()) {
+      const list = Array.isArray(diskHit.data) ? diskHit.data : [diskHit.data];
+      return res.json(buildMapGridResponse(list, fitted, layer, group, rows, cols, useArchive, date));
     }
 
-    let data = await cachedFetchJson(url.toString());
-    // Open-Meteo's free tier rate-limits bursts; retry once after a short backoff
-    // before surfacing a 502 to the client.
+    let data = await cachedFetchJson(upstreamUrl);
+    // Open-Meteo's free tier rate-limits bursts; retry once after a short
+    // backoff before surfacing an error to the client.
     if (data && !Array.isArray(data) && data.error) {
       await new Promise((r) => setTimeout(r, 600));
-      data = await cachedFetchJson(url.toString());
+      data = await cachedFetchJson(upstreamUrl);
     }
     if (data && !Array.isArray(data) && data.error) {
+      if (isRateLimited(data)) {
+        // Tell the client how long the window actually is: the minutely window
+        // is 60s, but the hourly/daily windows are much longer — a client that
+        // retries every minute against an exhausted hourly quota just burns
+        // more of the (still exhausted) budget.
+        const msg = String(data.reason || data.error || '');
+        const longWindow = /hourly|daily|next hour|tomorrow/i.test(msg);
+        const retryAfter = longWindow ? 600 : 60;
+        return res
+          .status(503)
+          .set('Retry-After', String(retryAfter))
+          .json({
+            error: longWindow
+              ? 'Open-Meteo free-tier quota reached (hourly/daily limit). Retrying in ~10 minutes.'
+              : 'Weather data temporarily unavailable (upstream rate limit). Retrying shortly.',
+            retryAfter,
+          });
+      }
       return res.status(502).json({ error: String(data.reason || data.error) });
     }
     const list = Array.isArray(data) ? data : [data];
 
-    const values = new Array(rows * cols).fill(null);
-    const windSpeed = fields.length > 1 ? new Array(rows * cols).fill(null) : null;
-    const windDir = fields.length > 1 ? new Array(rows * cols).fill(null) : null;
-
-    const pick = (obj, f) => {
-      if (!obj) return null;
-      const v = obj[f];
-      if (Array.isArray(v)) return v.find((x) => x !== null && x !== undefined) ?? null;
-      return v ?? null;
-    };
-
-    for (let i = 0; i < list.length; i++) {
-      const loc = list[i];
-      if (!loc) continue;
-      if (useArchive) {
-        values[i] = pick(loc.hourly, fields[0]);
-        if (windSpeed) windSpeed[i] = pick(loc.hourly, 'wind_speed_10m');
-        if (windDir) windDir[i] = pick(loc.hourly, 'wind_direction_10m');
-      } else {
-        values[i] = pick(loc.current, fields[0]);
-        if (windSpeed) windSpeed[i] = pick(loc.current, 'wind_speed_10m');
-        if (windDir) windDir[i] = pick(loc.current, 'wind_direction_10m');
-      }
-    }
-
-    res.json({
-      layer,
-      rows,
-      cols,
-      lats: latArr,
-      lons: lonArr,
-      values,
-      windSpeed,
-      windDir,
-      date: date || null,
-    });
+    const payload = buildMapGridResponse(list, fitted, layer, group, rows, cols, useArchive, date);
+    // Persist for the next boot so restarts never refetch this viewport.
+    gridDiskCache.set(upstreamUrl, { expires: Date.now() + GRID_DISK_TTL_MS, data: list });
+    persistGridDiskCache();
+    res.json(payload);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
 });
 
-// Daily temperature summary for the current date only.
-// Returns max/min temperature for the requested location, cached per day.
-app.get('/api/daily-temp', async (req, res) => {
-  try {
-    const lat = Number(req.query.lat);
-    const lon = Number(req.query.lon);
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return res.status(400).json({ error: 'lat and lon are required' });
-    }
-
-    const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.searchParams.set('latitude', String(lat));
-    url.searchParams.set('longitude', String(lon));
-    url.searchParams.set('timezone', 'auto');
-    url.searchParams.set('forecast_days', '1');
-
-    url.searchParams.append('daily', 'temperature_2m_max');
-    url.searchParams.append('daily', 'temperature_2m_min');
-    url.searchParams.append('daily', 'weather_code');
-    url.searchParams.append('daily', 'precipitation_sum');
-
-    const data = await cachedFetchJson(url.toString());
-    const daily = data?.daily || {};
-    const todayIndex = 0;
-    const tempMax = daily.temperature_2m_max?.[todayIndex];
-    const tempMin = daily.temperature_2m_min?.[todayIndex];
-    const weatherCode = daily.weather_code?.[todayIndex];
-    const precipSum = daily.precipitation_sum?.[todayIndex];
-
-    if (tempMax == null && tempMin == null) {
-      return res.status(502).json({ error: 'No daily temperature data from upstream' });
-    }
-
-    res.json({
-      date: daily.time?.[todayIndex],
-      tempMax: tempMax ?? null,
-      tempMin: tempMin ?? null,
-      weatherCode: weatherCode ?? null,
-      precipSum: precipSum ?? null
-    });
-  } catch (e) {
-    res.status(500).json({ error: String(e?.message || e) });
-  }
-});
+// Pure builder for the multi-layer response payload (kept in ./api so it can
+// be unit-tested without booting the server).
+const { buildMapGridResponse } = require('./api/map-grid-response');
 
 // Additional endpoint: Open-Meteo Air Quality API (AQI, pollutants, pollen).
 // Demonstrates optional params: `domains` (auto / cams_europe / cams_global)
@@ -788,44 +812,114 @@ app.get('/api/cities-weather', async (req, res) => {
           }
         }
         if (!loc || isBlockedCountry(loc.country)) {
-          return { name: city, maxTemp: null, minTemp: null, error: 'not found', lat: null, lon: null };
+          return { name: city, maxTemp: null, error: 'not found', lat: null, lon: null };
         }
 
         const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
         forecastUrl.searchParams.set('latitude', String(loc.latitude));
         forecastUrl.searchParams.set('longitude', String(loc.longitude));
         forecastUrl.searchParams.set('timezone', 'auto');
-        forecastUrl.searchParams.set('forecast_days', '1');
-        forecastUrl.searchParams.append('daily', 'temperature_2m_min');
+        forecastUrl.searchParams.set('forecast_days', '2');
         forecastUrl.searchParams.append('daily', 'temperature_2m_max');
+        forecastUrl.searchParams.append('daily', 'temperature_2m_min');
+        forecastUrl.searchParams.append('hourly', 'temperature_2m');
 
         let maxTemp = null;
         let minTemp = null;
         try {
           const forecast = await cachedFetchJson(forecastUrl.toString());
           const daily = forecast?.daily || {};
-          const minVals = daily.temperature_2m_min || [];
-          const maxVals = daily.temperature_2m_max || [];
-          if (minVals.length > 0) {
-            minTemp = Number.isFinite(minVals[0]) ? Math.round(minVals[0]) : null;
-          }
-          if (maxVals.length > 0) {
-            maxTemp = Number.isFinite(maxVals[0]) ? Math.round(maxVals[0]) : null;
+
+          maxTemp = daily?.temperature_2m_max?.[0] ?? null;
+          minTemp = daily?.temperature_2m_min?.[0] ?? null;
+
+          const times = forecast?.hourly?.time || [];
+          const temps = forecast?.hourly?.temperature_2m || [];
+
+          if (maxTemp === null || minTemp === null) {
+            const now = new Date();
+            const n = Math.min(times.length, temps.length, 48);
+
+            let latestHour = -1;
+            for (let i = 0; i < n; i++) {
+              const raw = String(times[i] || '');
+              const timePart = raw.split('T')[1] || '';
+              const hhmm = timePart.split('+')[0].split('Z')[0];
+              const parts = hhmm.split(':');
+              const hour = Number(parts[0]);
+              if (Number.isFinite(hour)) {
+                const t = new Date(raw);
+                if (!isNaN(t) && t <= now) {
+                  if (hour > latestHour) latestHour = hour;
+                }
+              }
+            }
+
+            if (latestHour >= 18) {
+              let max = null;
+              let min = null;
+              for (let i = 0; i < n; i++) {
+                const v = temps[i];
+                if (Number.isFinite(v)) {
+                  const t = new Date(times[i]);
+                  if (!isNaN(t) && t <= now) {
+                    if (max === null || v > max) max = v;
+                    if (min === null || v < min) min = v;
+                  }
+                }
+              }
+              if (max !== null) maxTemp = Math.round(max);
+              if (min !== null) minTemp = Math.round(min);
+            }
           }
         } catch (e) {
           console.error('[cities-weather] forecast fetch failed for', city, e);
         }
 
-        return {
+        if (maxTemp === null || minTemp === null) {
+          const yesterday = new Date(Date.now() - 86400000);
+          const yyyy = String(yesterday.getFullYear());
+          const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+          const dd = String(yesterday.getDate()).padStart(2, '0');
+          const archiveUrl = new URL('https://archive-api.open-meteo.com/v1/archive');
+          archiveUrl.searchParams.set('latitude', String(loc.latitude));
+          archiveUrl.searchParams.set('longitude', String(loc.longitude));
+          archiveUrl.searchParams.set('timezone', 'auto');
+          archiveUrl.searchParams.set('start_date', `${yyyy}-${mm}-${dd}`);
+          archiveUrl.searchParams.set('end_date', `${yyyy}-${mm}-${dd}`);
+          archiveUrl.searchParams.append('daily', 'temperature_2m_max');
+          archiveUrl.searchParams.append('daily', 'temperature_2m_min');
+
+          try {
+            const archive = await cachedFetchJson(archiveUrl.toString());
+            const daily = archive?.daily || {};
+            if (maxTemp === null && daily?.temperature_2m_max?.[0] !== undefined) {
+              maxTemp = Number.isFinite(daily.temperature_2m_max[0]) ? Math.round(daily.temperature_2m_max[0]) : null;
+            }
+            if (minTemp === null && daily?.temperature_2m_min?.[0] !== undefined) {
+              minTemp = Number.isFinite(daily.temperature_2m_min[0]) ? Math.round(daily.temperature_2m_min[0]) : null;
+            }
+          } catch (e) {
+            console.error('[cities-weather] archive fetch failed for', city, e);
+          }
+        }
+
+        const result = {
           name: city,
+          country: loc.country || country,
           lat: loc.latitude,
           lon: loc.longitude,
-          maxTemp: Number.isFinite(maxTemp) ? maxTemp : null,
-          minTemp: Number.isFinite(minTemp) ? minTemp : null,
+          maxTemp: Number.isFinite(maxTemp) ? Math.round(maxTemp) : null,
+          minTemp: Number.isFinite(minTemp) ? Math.round(minTemp) : null,
+          daily: {
+            temperature_2m_max: maxTemp !== null ? [maxTemp] : [],
+            temperature_2m_min: minTemp !== null ? [minTemp] : []
+          }
         };
+        return result;
       } catch (e) {
         console.error('[cities-weather] error for', city, e);
-        return { name: city, maxTemp: null, minTemp: null, error: String(e?.message || e), lat: null, lon: null };
+        return { name: city, maxTemp: null, error: String(e?.message || e), lat: null, lon: null };
       }
     });
 
@@ -858,8 +952,16 @@ app.get('/api/capitals', (req, res) => {
 // ticker only makes ONE request instead of ~195. Blocked countries are skipped.
 // The aggregated result is cached in-memory (CAPITALS_TTL) so we don't fire
 // ~188 outbound requests on every page load.
-const CAPITALS_TTL_MS = 10 * 60 * 1000;
+// Capitals weather rebuilds ~190 upstream calls, so cache it for an hour —
+// refreshing every 10 minutes would burn up to ~27k calls/day on its own and
+// blow through Open-Meteo's 10k/day free tier. Hourly temperature data is
+// plenty fresh for a ticker.
+const CAPITALS_TTL_MS = 60 * 60 * 1000;
 let capitalsWeatherCache = { expires: 0, data: null };
+// In-flight promise so the boot pre-warm and the first real request share ONE
+// build instead of firing ~190 upstream calls twice (which exhausted the
+// minute quota and caused the map's 503s right after a restart).
+let capitalsWeatherPromise = null;
 
 // Resolve promises with a bounded concurrency so we never fire ~190 outbound
 // requests at once (which saturates the event loop / network and makes the
@@ -908,25 +1010,35 @@ async function buildCapitalsWeather() {
   return { capitals: results };
 }
 
+// Cached, deduped capitals weather. Concurrent callers (boot pre-warm + the
+// first ticker request) share a single build; the result is cached for
+// CAPITALS_TTL_MS so steady-state traffic never touches the upstream.
+function getCapitalsWeather() {
+  if (capitalsWeatherCache.data && capitalsWeatherCache.expires > Date.now()) {
+    return Promise.resolve(capitalsWeatherCache.data);
+  }
+  if (!capitalsWeatherPromise) {
+    capitalsWeatherPromise = buildCapitalsWeather()
+      .then((data) => {
+        capitalsWeatherCache = { expires: Date.now() + CAPITALS_TTL_MS, data };
+        return data;
+      })
+      .finally(() => {
+        capitalsWeatherPromise = null;
+      });
+  }
+  return capitalsWeatherPromise;
+}
+
 app.get('/api/capitals-weather', async (req, res) => {
   try {
-    const now = Date.now();
-    if (capitalsWeatherCache.data && capitalsWeatherCache.expires > now) {
-      return res.json(capitalsWeatherCache.data);
-    }
-    const data = await buildCapitalsWeather();
-    capitalsWeatherCache = { expires: now + CAPITALS_TTL_MS, data };
+    const data = await getCapitalsWeather();
     res.json(data);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
 });
 
-// Pre-warm the capitals-weather cache on boot (fire and forget) so the first
-// visitor doesn't pay the cost of ~188 outbound requests.
-buildCapitalsWeather()
-  .then((data) => { capitalsWeatherCache = { expires: Date.now() + CAPITALS_TTL_MS, data }; })
-  .catch(() => {});
 
 // Favorites API
 const FAVORITES_KEY = 'open-meteo-favorites';

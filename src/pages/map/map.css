@@ -180,8 +180,8 @@
     left: 16px;
     bottom: 16px;
     z-index: 1100;
-    width: 220px;
-    max-width: 50vw;
+    width: 300px;
+    max-width: 60vw;
     background: rgba(15, 23, 42, 0.82);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -191,6 +191,12 @@
     color: white;
 }
 
+/* The legend is hidden until a weather layer is selected (OWM-style: the map
+   opens with no overlay, so there is nothing to key). */
+.map-legend[hidden] {
+    display: none;
+}
+
 .map-legend__title {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.85);
@@ -198,22 +204,37 @@
 }
 
 .map-legend__bar {
+    position: relative;
     height: 12px;
     border-radius: 6px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+    overflow: hidden;
+}
+
+.map-legend__bar canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 .map-legend__ticks {
-    display: flex;
-    justify-content: space-between;
+    position: relative;
+    height: 14px;
     font-size: 11px;
     color: rgba(255, 255, 255, 0.7);
+}
+
+.map-legend__tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
 }
 
 .map-status {
     position: absolute;
     left: 50%;
-    bottom: 18px;
+    bottom: 74px;
     transform: translateX(-50%);
     background: rgba(15, 23, 42, 0.85);
     color: white;
@@ -222,6 +243,74 @@
     font-size: 13px;
     z-index: 1200;
     pointer-events: none;
+}
+
+/* Header geolocation button on the map page: pin the same hover feedback as
+   the settings button (shared header.css also defines it; this keeps the map
+   page consistent even when header.css is served from an older copy). */
+.header__geo-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* ---------- OWM-style forecast scrubber (bottom center) ---------- */
+.map-timeline {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 88vw;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 7px 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.map-timeline[hidden] {
+    display: none;
+}
+
+.map-timeline__step {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-timeline__step:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.map-timeline__slider {
+    flex: 1 1 auto;
+    min-width: 120px;
+    max-width: 340px;
+    height: 4px;
+    accent-color: #ea6c0c;
+    cursor: pointer;
+}
+
+.map-timeline__time {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .leaflet-container {
@@ -235,5 +324,29 @@
     }
     .map-panel {
         width: 100%;
+    }
+    /* Mobile: the legend shrinks and moves to the top right (away from the
+       bottom-center timeline), so it never covers the map's horizon. */
+    .map-legend {
+        left: auto;
+        right: 12px;
+        top: 12px;
+        bottom: auto;
+        width: 168px;
+        max-width: 55vw;
+        padding: 8px 10px;
+        border-radius: 10px;
+    }
+    .map-legend__title {
+        font-size: 11px;
+        margin-bottom: 5px;
+    }
+    .map-legend__bar {
+        height: 8px;
+        margin-bottom: 4px;
+    }
+    .map-legend__ticks {
+        height: 11px;
+        font-size: 9px;
     }
 }

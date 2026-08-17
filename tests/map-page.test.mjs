@@ -22,6 +22,7 @@ import {
   sampleGrid,
   expandBBox,
   normalizeLon,
+  minZoomForHeight,
 } from '../src/pages/map/grid.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,6 +76,90 @@ test('legendStops returns the requested count with colors', () => {
   }
 });
 
+test('precipitation/radar render as light colors at low rain, not dark smudges', () => {
+  // The old palette interpolated from black, so 0.2-1mm rain came out as a
+  // dark patch. Light rain must stay light (high R channel, low darkness).
+  const light = colorAt('precipitation', 0.2);
+  assert.ok(light.r > 100, `precipitation 0.2mm should be light blue, got r=${light.r}`);
+  assert.ok(light.g > 150, `precipitation 0.2mm should be light blue, got g=${light.g}`);
+  assert.ok(light.a > 0.5, 'light rain should be clearly visible');
+  const zero = colorAt('precipitation', 0);
+  assert.equal(zero.a, 0, 'no rain stays fully transparent');
+
+  // Radar is in dBZ: 20 dBZ (light rain) is green, drizzle below ~15 dBZ
+  // stays transparent, and zero rain is fully transparent.
+  const radar = colorAt('radar', 20);
+  assert.ok(radar.g > 150, `radar 20 dBZ should be green, got g=${radar.g}`);
+  assert.ok(radar.r < radar.g, 'radar low value should be green-dominant');
+  // Below the 15 dBZ stop the wash fades from transparent to light green;
+  // drizzle is still faint green, never a dark smudge.
+  const drizzle = colorAt('radar', 10);
+  assert.ok(drizzle.g > drizzle.r && drizzle.g > drizzle.b, 'drizzle below 15 dBZ should be faint green');
+  const radarZero = colorAt('radar', 0);
+  assert.equal(radarZero.a, 0, 'radar with no rain stays transparent');
+});
+
+test('radar converts mm/h to dBZ reflectivity like real radar maps', () => {
+  const t = getLayer('radar').transform;
+  assert.ok(t, 'radar layer declares a transform');
+  // Z-R relation: dBZ = 10*log10(200*R^1.6). 1 mm/h ≈ 23 dBZ.
+  assert.ok(Math.abs(t(1) - 10 * Math.log10(200)) < 0.01, `t(1mm) ≈ 23 dBZ, got ${t(1)}`);
+  assert.ok(t(5) > t(1) && t(10) > t(5), 'transform is monotonic in rain rate');
+  assert.equal(t(0), -Infinity, 'no rain maps to no reflectivity');
+});
+
+test('precipitation is a pure blue scale like OpenWeatherMap (no purple top)', () => {
+  // OWM's classic rain ramps pale blue -> deep royal blue; the old palette
+  // turned purple at the top, which no weather map shows for rain.
+  for (const v of [1, 5, 25]) {
+    const c = colorAt('precipitation', v);
+    assert.ok(c.b > c.r && c.b > c.g, `precipitation at ${v}mm should be blue-dominant, got rgb(${c.r},${c.g},${c.b})`);
+  }
+});
+
+test('radar follows the classic reflectivity rainbow (green -> yellow -> orange -> red -> magenta)', () => {
+  // The NWS/RainViewer/Windy reflectivity scale in dBZ: green for light rain,
+  // warming through yellow/orange, red for heavy rain, magenta for extreme.
+  const low = colorAt('radar', 22); // ~green (light rain, 20-25 dBZ)
+  const mid = colorAt('radar', 33); // ~yellow/orange (moderate, 30-35 dBZ)
+  const high = colorAt('radar', 48); // ~red/magenta (heavy/extreme, 45-50 dBZ)
+  assert.ok(low.g > low.r && low.g > low.b, 'light rain should be green');
+  assert.ok(mid.r > mid.g && mid.r > mid.b, 'moderate rain should be red-dominant (yellow/orange)');
+  assert.ok(high.r > high.g, 'heavy rain should be red');
+  assert.ok(high.b > high.g, 'extreme rain should be magenta-ish (blue above green)');
+});
+
+test('clouds palette is neon blue (opacity does the work)', () => {
+  // Clouds are now a NEON-BLUE wash: the intensity of the cloud field is
+  // conveyed by opacity and a blue-dominant color cast, not by darkness. The
+  // blue reads on both the light map and the dark satellite basemap.
+  for (const v of [25, 50, 75, 100]) {
+    const c = colorAt('clouds', v);
+    // Neon blue: blue channel clearly dominant over red and green.
+    assert.ok(c.b > c.r && c.b > c.g, `clouds at ${v}% should be blue-dominant, got rgb(${c.r},${c.g},${c.b})`);
+    assert.ok(c.b >= 110, `clouds at ${v}% should be a vivid blue, got b=${c.b}`);
+    assert.ok(c.a > 0.4, `clouds at ${v}% should be clearly visible (alpha ${c.a})`);
+  }
+  assert.equal(colorAt('clouds', 0).a, 0, 'clear sky stays transparent');
+  assert.equal(colorAt('clouds', 100).a, 1, 'full cloud cover is fully opaque');
+  // The layer also raises the tile alpha above the default 0.7 wash so the
+  // blanket reads as solid (the geo outlines still render above the weather).
+  assert.equal(getLayer('clouds').opacity, 0.95, 'clouds declare a high per-layer opacity');
+});
+
+test('pressure palette spreads the typical 995-1030 hPa band across colors', () => {
+  const { min, max } = layerRange('pressure');
+  assert.ok(min <= 990 && max >= 1030, `pressure range should cover the common band, got ${min}-${max}`);
+  const low = colorAt('pressure', 997);
+  const mid = colorAt('pressure', 1013);
+  const high = colorAt('pressure', 1028);
+  // Distinct hues across the band: low is blue-ish, high is red-ish.
+  assert.ok(low.b > low.r, 'low pressure should be blue-ish');
+  assert.ok(high.r > high.b, 'high pressure should be red-ish');
+  const diff = Math.abs(mid.r - low.r) + Math.abs(mid.g - low.g) + Math.abs(mid.b - low.b);
+  assert.ok(diff > 100, 'mid pressure should differ visibly from low pressure');
+});
+
 // ---------- Grid math ----------
 test('tileToLatLon / tileLatLngBounds for root tile', () => {
   const tl = tileToLatLon(0, 0, 0);
@@ -121,6 +206,25 @@ test('expandBBox and normalizeLon helpers', () => {
   assert.equal(normalizeLon(-190), 170);
 });
 
+test('minZoomForHeight never shows empty top/bottom borders', () => {
+  // The viewport must stay inside the ±85° Web Mercator world: a taller
+  // viewport needs a higher minimum zoom.
+  assert.equal(minZoomForHeight(400), 2);
+  assert.equal(minZoomForHeight(900), 2);
+  assert.equal(minZoomForHeight(1300), 3);
+  assert.equal(minZoomForHeight(2200), 4);
+  // Hard floors: never a whole-world view, never absurdly zoomed in.
+  assert.ok(minZoomForHeight(50) >= 2, 'min zoom never below 2');
+  assert.ok(minZoomForHeight(100000) <= 6, 'min zoom never above 6');
+  // For every tested height the visible latitude span at the returned zoom
+  // actually fits inside ±85° (168° target leaves ~1° margin each side).
+  for (const H of [400, 900, 1300, 2200]) {
+    const z = minZoomForHeight(H);
+    const span = (170.1 * H) / (256 * Math.pow(2, z));
+    assert.ok(span <= 168 + 1e-9, `span ${span.toFixed(1)}° at zoom ${z} for H=${H}`);
+  }
+});
+
 // ---------- Page structure (jsdom) ----------
 test('map page contains required controls and hide/reopen wiring', () => {
   const html = readFileSync(MAP_HTML, 'utf8');
@@ -141,6 +245,8 @@ test('map page contains required controls and hide/reopen wiring', () => {
   assert.equal(doc.getElementById('time-slider'), null, 'time slider should be removed');
   assert.equal(doc.getElementById('cities-toggle'), null, 'cities toggle should be removed');
   assert.equal(doc.getElementById('map-search'), null, 'search should be removed');
+  assert.equal(doc.getElementById('map-wind-mode-section'), null, 'wind field (Wind/Gusts) toggle should be removed');
+  assert.equal(doc.querySelector('[data-windmode]'), null, 'no wind-mode buttons should exist');
   assert.ok(doc.querySelector('script[src*="leaflet"]'), 'leaflet script missing');
   assert.ok(doc.querySelector('script[src*="map.js"]'), 'map.js module missing');
   assert.ok(doc.querySelector('a.header__nav-link[href="/map"]'), 'map nav link missing');

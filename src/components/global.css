@@ -129,6 +129,16 @@ img, svg, canvas, video {
     opacity: 0.8;
 }
 
+/* Checkbox row (e.g. the capitals-ticker toggle): the label is already a flex
+   row from .settings-label, so the input aligns with the text naturally. */
+.settings-modal-body .settings-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #2a7fd4;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
 .settings-modal-body .settings-select {
     width: 100%;
     padding: 10px 12px;

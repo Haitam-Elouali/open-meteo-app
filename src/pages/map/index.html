@@ -6,17 +6,21 @@
     <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@200&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link href="/components/global.css" rel="stylesheet">
-    <link href="/components/header/header.css?v=2" rel="stylesheet">
-    <link href="/pages/map/map.css" rel="stylesheet">
+    <link href="/components/header/header.css?v=3" rel="stylesheet">
+    <link href="/pages/map/map.css?v=4" rel="stylesheet">
     <link href="/components/capitals-ticker.css" rel="stylesheet">
+    <script defer src="/components/settings.js"></script>
     <script defer src="/components/units.js"></script>
     <script defer src="/components/i18n.js"></script>
     <script defer src="/components/header/header.js"></script>
     <script defer src="/components/weather-background.js"></script>
-    <script defer src="/components/capitals-ticker.js?v=2"></script>
+    <script defer src="/components/capitals-ticker.js?v=4"></script>
+    <script defer src="/components/location-modal.js"></script>
+    <script defer src="/components/settings-modal.js?v=2"></script>
     <title>Weather Map - Open Arsad</title>
 </head>
 <body>
@@ -66,8 +70,20 @@
         <!-- Map canvas -->
         <div class="map-stage">
             <div id="map" class="map-canvas"></div>
-            <div class="map-legend" id="map-legend" aria-live="polite"></div>
+            <!-- Legend starts hidden: no layer is selected by default (OWM-style). -->
+            <div class="map-legend" id="map-legend" aria-live="polite" hidden></div>
             <div class="map-status" id="map-status" hidden></div>
+
+            <!-- OWM-style forecast scrubber: prev / slider / next + timestamp.
+                 All forecast hours ride in the single grid payload, so moving
+                 the scrubber is a pure client-side switch — zero upstream
+                 calls. -->
+            <div class="map-timeline" id="map-timeline" hidden>
+                <button type="button" class="map-timeline__step" id="map-timeline-prev" aria-label="Previous forecast hour">&#8249;</button>
+                <input type="range" class="map-timeline__slider" id="map-timeline-slider" min="0" max="47" step="1" value="0" aria-label="Forecast time">
+                <button type="button" class="map-timeline__step" id="map-timeline-next" aria-label="Next forecast hour">&#8250;</button>
+                <span class="map-timeline__time" id="map-timeline-time"></span>
+            </div>
         </div>
 
         <!-- Modal control panel (auto height, hideable) -->
@@ -76,7 +92,7 @@
             <aside class="map-panel" id="map-panel">
                 <div class="map-panel__head">
                     <h2 class="map-panel__title" data-i18n="map.controls">Map Controls</h2>
-                    <button type="button" class="map-panel__close" id="map-panel-close" aria-label="Hide controls">&times;</button>
+                    <button type="button" class="map-panel__close" id="map-panel-close" aria-label="Hide controls" data-i18n-title="map.hideControls">&times;</button>
                 </div>
 
                 <section class="map-panel__section">
@@ -87,23 +103,103 @@
                 <section class="map-panel__section">
                     <label class="map-panel__label" data-i18n="map.basemap">Base map</label>
                     <div class="map-basemaps" id="map-basemaps" role="group">
-                        <button type="button" class="map-opt is-active" data-basemap="map">Map</button>
-                        <button type="button" class="map-opt" data-basemap="satellite">Satellite</button>
+                        <button type="button" class="map-opt is-active" data-basemap="map" data-i18n="map.basemap.map">Map</button>
+                        <button type="button" class="map-opt" data-basemap="satellite" data-i18n="map.basemap.satellite">Satellite</button>
                     </div>
                 </section>
             </aside>
         </div>
 
         <!-- Reopen button (shown when modal hidden) -->
-        <button type="button" class="map-panel__open" id="map-panel-open" hidden aria-label="Show controls">
+        <button type="button" class="map-panel__open" id="map-panel-open" hidden aria-label="Show controls" data-i18n-title="map.showControls">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
             </svg>
         </button>
     </div>
 
+    <div class="settings-modal-backdrop" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true">
+            <div class="settings-modal-header">
+                <h2 data-i18n="settings.title">Settings</h2>
+                <button class="settings-modal-close" type="button">&times;</button>
+            </div>
+            <div class="settings-modal-body">
+                <section class="settings-section">
+                    <h3 data-i18n="settings.units">Units</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                        </svg>
+                        <span data-i18n="settings.temperature">Temperature</span>
+                    </label>
+                    <select class="settings-select" id="temp-unit-select">
+                        <option value="c" data-i18n="settings.unitC">Celsius (°C)</option>
+                        <option value="f" data-i18n="settings.unitF">Fahrenheit (°F)</option>
+                    </select>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
+                        </svg>
+                        <span data-i18n="settings.windSpeed">Wind Speed</span>
+                    </label>
+                    <select class="settings-select" id="wind-unit-select">
+                    <option value="kmh" data-i18n="settings.windKmh">km/h</option>
+                    <option value="kt" data-i18n="settings.windKn">kt</option>
+                    <option value="ms" data-i18n="settings.windMs">m/s</option>
+                    </select>
+                </section>
+                <section class="settings-section">
+                    <h3 data-i18n="settings.language">Language</h3>
+                    <label class="settings-label">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        <span data-i18n="settings.uiLanguage">UI Language</span>
+                    </label>
+                    <select class="settings-select" id="settings-lang-select">
+                        <option value="en" data-i18n="lang.en">English</option>
+                        <option value="fr" data-i18n="lang.fr">Français</option>
+                        <option value="es" data-i18n="lang.es">Español</option>
+                        <option value="ar" data-i18n="lang.ar">العربية</option>
+                    </select>
+                </section>
+                <section class="settings-section">
+                    <h3 data-i18n="settings.interface">Interface</h3>
+                    <label class="settings-label settings-checkbox">
+                        <input type="checkbox" id="ticker-toggle" checked />
+                        <span data-i18n="settings.ticker">Capitals ticker</span>
+                    </label>
+                </section>
+            </div>
+            <div class="settings-modal-footer">
+                <button class="settings-cancel" type="button" data-i18n="settings.cancel">Cancel</button>
+                <button class="settings-confirm primary" type="button" data-i18n="settings.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="location-modal-backdrop" hidden>
+        <div class="location-modal" role="dialog" aria-modal="true">
+            <h2 data-i18n="location.title">Choose city &amp; country</h2>
+            <label data-i18n="location.country">Country</label>
+            <select class="location-country">
+                <option value="">Select a country</option>
+            </select>
+            <label data-i18n="location.city">City</label>
+            <select class="location-city" disabled>
+                <option value="">Select a country first</option>
+            </select>
+            <div class="location-modal-actions">
+                <button class="location-cancel" data-i18n="location.cancel">Cancel</button>
+                <button class="location-confirm primary" data-i18n="location.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script type="module" src="/pages/map/map.js"></script>
+    <script type="module" src="/pages/map/map.js?v=19"></script>
 </body>
 </html>

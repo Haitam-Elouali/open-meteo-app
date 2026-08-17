@@ -12,7 +12,7 @@
 
     <!-- loading components -->
     <link href="/components/global.css" rel="stylesheet">
-    <link href="/components/header/header.css?v=2" rel="stylesheet">
+    <link href="/components/header/header.css?v=3" rel="stylesheet">
     <link href="/components/weather card/weather-card.css" rel="stylesheet">
     <link href="/components/capitals-ticker.css" rel="stylesheet">
 
@@ -21,9 +21,9 @@
     <script defer src="/components/i18n.js"></script>
     <script defer src="/components/weather card/weather-card.js?v=5"></script>
     <script defer src="/components/header/header.js"></script>
-    <script defer src="/components/capitals-ticker.js?v=2"></script>
+    <script defer src="/components/capitals-ticker.js?v=3"></script>
     <script defer src="/components/location-modal.js"></script>
-    <script defer src="/components/settings-modal.js"></script>
+    <script defer src="/components/settings-modal.js?v=3"></script>
 
 
     <title>Open Arsad</title>
@@ -118,6 +118,13 @@
                         <option value="es" data-i18n="lang.es">Español</option>
                         <option value="ar" data-i18n="lang.ar">العربية</option>
                     </select>
+                </section>
+                <section class="settings-section">
+                    <h3 data-i18n="settings.interface">Interface</h3>
+                    <label class="settings-label">
+                        <input type="checkbox" id="ticker-toggle" checked />
+                        <span data-i18n="settings.ticker">Capitals ticker</span>
+                    </label>
                 </section>
             </div>
             <div class="settings-modal-footer">

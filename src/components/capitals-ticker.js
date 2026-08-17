@@ -10,6 +10,18 @@
   const U = window.Units || { temp: (v) => v, tempLabel: () => '' };
 
   const INTERVAL_MS = 3500;
+  // The "Show capitals ticker" setting lives in shared localStorage so it
+  // applies on every page. When disabled the ticker is hidden and never fetches.
+  const SHOW_KEY = 'open-meteo-show-ticker';
+  let loaded = false;
+
+  function tickerVisible() {
+    try {
+      return (localStorage.getItem(SHOW_KEY) || 'true') !== 'false';
+    } catch (e) {
+      return true;
+    }
+  }
 
   function chooseIcon({ is_day, weatherCode }) {
     const code = Number(weatherCode) || 0;
@@ -75,9 +87,7 @@
 
   const IDX_KEY = 'open-meteo-capital-idx';
 
-  async function init() {
-    const stage = $('#capitals-stage');
-    if (!stage) return;
+  async function load(stage) {
     await ensureSprite();
 
     let caps = [];
@@ -118,8 +128,34 @@
       try { localStorage.setItem(IDX_KEY, String(idx)); } catch (e) {}
     };
 
+    loaded = true;
     show();
     setInterval(show, INTERVAL_MS);
+  }
+
+  async function init() {
+    const stage = $('#capitals-stage');
+    if (!stage) return;
+    const root = stage.parentElement;
+
+    // Hide the ticker immediately when the setting says so (it applies on
+    // every page, so a fresh navigation never flashes it back on).
+    const applyVisibility = (visible) => {
+      if (root) root.hidden = !visible;
+    };
+
+    // Live toggle from the settings modal: hide/show without a reload, and
+    // fetch the capitals data the first time it is re-enabled.
+    document.addEventListener('ticker-visibility-change', (e) => {
+      const visible = !!(e && e.detail && e.detail.visible);
+      applyVisibility(visible);
+      if (visible && !loaded) load(stage);
+    });
+
+    applyVisibility(tickerVisible());
+    if (!tickerVisible()) return;
+
+    load(stage);
   }
 
   if (document.readyState === 'loading') {

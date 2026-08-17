@@ -96,3 +96,16 @@ export function normalizeLon(lon) {
   while (l < -180) l += 360;
   return l;
 }
+
+// Smallest zoom level at which a viewport of height `H` pixels still fits
+// INSIDE the map's valid latitude range (the Web Mercator world, ±85.05°).
+// Zooming out further would show empty strips above/below the poles because
+// the basemap and the weather data simply don't exist past ±85°. The world is
+// 256*2^z px tall and spans ~170.1° of latitude, so a viewport of H px shows
+// 170.1*H/(256*2^z) degrees; require that span to stay ≤ 168° (a ~1° margin
+// on each side). Floor at zoom 2 — a whole-world-in-viewport view is never
+// useful on a weather map.
+export function minZoomForHeight(H) {
+  const z = Math.ceil(Math.log2((170.1 * H) / (256 * 168)));
+  return Math.max(2, Math.min(6, z));
+}

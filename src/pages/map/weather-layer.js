@@ -4,10 +4,52 @@
 // not an opaque image replacing the geography. We bake a transparency factor into
 // every pixel so the map shows through everywhere.
 import { buildLUT, layerRange } from './palette.js';
-import { tileLatLngBounds, sampleGrid } from './grid.js';
+import { getLayer } from './layers.js';
+import { tileLatLngBounds, sampleGrid, normalizeLon } from './grid.js';
 
 // Intrinsic overlay transparency (the geography underneath must remain visible).
+// Layers may raise this with their own `opacity` (e.g. clouds needs to read as
+// a solid white blanket, so it declares opacity: 0.95).
 const OVERLAY_ALPHA = 0.7;
+
+// Total sampling budget (samples) for a full weather refresh. The per-tile
+// sub-resolution is derived from how many tiles the current viewport shows, so
+// a 4K screen (many tiles) costs about the same as a phone (few tiles) and the
+// whole refresh stays well under the 60fps frame budget.
+const TOTAL_SAMPLE_BUDGET = 80000;
+const SUB_MIN = 24;
+const SUB_MAX = 96;
+
+// Shared scratch canvas reused across tiles (per-tile allocation of the temp
+// canvas + ImageData was a large chunk of the fixed per-tile cost on big
+// screens, where a full refresh renders 60-140 tiles).
+let scratch = null;
+function getScratch(sub) {
+  if (!scratch || scratch.size !== sub) {
+    const canvas = document.createElement('canvas');
+    canvas.width = sub;
+    canvas.height = sub;
+    const ctx = canvas.getContext('2d');
+    scratch = { canvas, ctx, img: ctx.createImageData(sub, sub), size: sub };
+  }
+  return scratch;
+}
+
+// How many tiles the current viewport needs (before Leaflet's small overdraw).
+function visibleTileCount(layer) {
+  const size = layer._map ? layer._map.getSize() : { x: 1024, y: 768 };
+  return Math.max(1, Math.ceil(size.x / 256) * Math.ceil(size.y / 256));
+}
+
+function subResFor(layer) {
+  const tiles = visibleTileCount(layer);
+  const sub = Math.round(Math.sqrt(TOTAL_SAMPLE_BUDGET / tiles));
+  return Math.max(SUB_MIN, Math.min(SUB_MAX, sub));
+}
+
+// Lightweight timing stats for performance tuning; map.js exposes them on
+// window.__mapPerf after init.
+export const weatherPerf = { renders: 0, totalMs: 0, lastMs: 0, avgMs: 0 };
 
 export function createWeatherLayer(getGrid, getLayerId) {
   const L = window.L;
@@ -20,35 +62,44 @@ export function createWeatherLayer(getGrid, getLayerId) {
       tile.height = size;
       const ctx = tile.getContext('2d');
       const layerId = getLayerId();
+
       const grid = getGrid();
+      const def = getLayer(layerId);
       const { min, max } = layerRange(layerId);
       const lut = buildLUT(layerId, 1024);
       const lutLen = lut.length / 4;
 
-      // Render at half resolution then upscale for speed.
-      const sub = 128;
-      const tmp = document.createElement('canvas');
-      tmp.width = sub;
-      tmp.height = sub;
-      const tctx = tmp.getContext('2d');
-      const img = tctx.createImageData(sub, sub);
+      // Sub-resolution adapts to how many tiles this screen needs so the total
+      // render cost stays bounded (a big monitor renders more, coarser tiles;
+      // the 256px upscale keeps the wash smooth either way).
+      const sub = subResFor(this);
+      const tmp = getScratch(sub);
+      const tctx = tmp.ctx;
+      const img = tmp.img;
+      const t0 = performance.now();
 
       const bounds = tileLatLngBounds(coords.z, coords.x, coords.y);
       const dLat = bounds.north - bounds.south;
       const dLon = bounds.east - bounds.west;
-      const isWind = layerId === 'wind';
-      const hasWind = grid && grid.windSpeed && grid.windDir;
 
       for (let py = 0; py < sub; py++) {
         const lat = bounds.north - (py / (sub - 1)) * dLat;
         for (let px = 0; px < sub; px++) {
-          const lon = bounds.west + (px / (sub - 1)) * dLon;
+          // Normalize longitude so tiles rendered past the antimeridian (in
+          // the world copy) sample the same field instead of clamping to the
+          // grid edge — that was the source of the hard "line in the middle"
+          // and wrong colors on wrapped views.
+          const lon = normalizeLon(bounds.west + (px / (sub - 1)) * dLon);
           const idx = (py * sub + px) * 4;
           let value = grid ? sampleGrid(grid, lat, lon) : null;
           if (value == null || Number.isNaN(value)) {
             img.data[idx + 3] = 0;
             continue;
           }
+          // Layers may declare a transform between the raw field and the
+          // palette range (radar converts mm/h -> dBZ reflectivity), applied
+          // per sample so the tiles and legend both use the same scale.
+          if (def.transform) value = def.transform(value);
           let t = (value - min) / (max - min);
           if (t < 0) t = 0;
           if (t > 1) t = 1;
@@ -56,56 +107,26 @@ export function createWeatherLayer(getGrid, getLayerId) {
           img.data[idx] = lut[li * 4];
           img.data[idx + 1] = lut[li * 4 + 1];
           img.data[idx + 2] = lut[li * 4 + 2];
-          img.data[idx + 3] = Math.round(lut[li * 4 + 3] * OVERLAY_ALPHA);
+          const layerAlpha = def.opacity != null ? def.opacity : OVERLAY_ALPHA;
+          img.data[idx + 3] = Math.round(lut[li * 4 + 3] * layerAlpha);
         }
       }
       tctx.putImageData(img, 0, 0);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(tmp, 0, 0, size, size);
+      ctx.drawImage(tmp.canvas, 0, 0, size, size);
 
-      if (isWind && hasWind) {
-        drawWindArrows(ctx, grid, bounds, size);
-      }
+      const ms = performance.now() - t0;
+      weatherPerf.renders++;
+      weatherPerf.totalMs += ms;
+      weatherPerf.lastMs = ms;
+      weatherPerf.avgMs = weatherPerf.totalMs / weatherPerf.renders;
 
       if (done) setTimeout(() => done(null, tile), 0);
       return tile;
     },
   });
 
-  return new WeatherLayer({ tileSize: 256, opacity: 0.8, updateWhenIdle: false });
-}
-
-function drawWindArrows(ctx, grid, bounds, size) {
-  const step = Math.max(22, Math.round(size / 8));
-  const dLat = bounds.north - bounds.south;
-  const dLon = bounds.east - bounds.west;
-  ctx.strokeStyle = 'rgba(15,23,42,0.85)';
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  for (let py = step / 2; py < size; py += step) {
-    const lat = bounds.north - (py / size) * dLat;
-    for (let px = step / 2; px < size; px += step) {
-      const lon = bounds.west + (px / size) * dLon;
-      const speed = sampleGrid({ ...grid, values: grid.windSpeed }, lat, lon);
-      const dir = sampleGrid({ ...grid, values: grid.windDir }, lat, lon);
-      if (speed == null || dir == null || Number.isNaN(speed)) continue;
-      // Meteorological direction = where wind comes FROM. Arrow points TO.
-      const rad = ((dir + 180) * Math.PI) / 180;
-      const len = Math.min(step * 0.5, 6 + speed * 0.25);
-      const ex = px + Math.sin(rad) * len;
-      const ey = py - Math.cos(rad) * len;
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-      // arrow head
-      const ah = 4;
-      ctx.beginPath();
-      ctx.moveTo(ex, ey);
-      ctx.lineTo(ex - Math.sin(rad - 0.5) * ah, ey + Math.cos(rad - 0.5) * ah);
-      ctx.moveTo(ex, ey);
-      ctx.lineTo(ex - Math.sin(rad + 0.5) * ah, ey + Math.cos(rad + 0.5) * ah);
-      ctx.stroke();
-    }
-  }
+  // updateWhenIdle: true so tiles re-render only when the map settles instead
+  // of re-sampling the grid on every pan frame (the main cause of pan jank).
+  return new WeatherLayer({ tileSize: 256, opacity: 0.8, updateWhenIdle: true });
 }
