@@ -6,3 +6,4 @@ nul
 
 .vercel
 .grid-cache.json
+.env*
