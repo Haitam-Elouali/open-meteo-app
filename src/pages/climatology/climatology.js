@@ -377,9 +377,14 @@
     }
 
     window.addEventListener('location:changed', () => {
-      const result = $('#climatology-result');
-      if (!result.hidden) loadClimatology();
+      // A location was just chosen: always refresh with it (the result box
+      // may still be hidden from a previous error/empty state).
+      loadClimatology();
     });
+
+    // Auto-load climatology for the currently selected city/country on open,
+    // instead of waiting for the user to click "Fetch Data".
+    loadClimatology();
   }
 
   function updateHourOptions() {
