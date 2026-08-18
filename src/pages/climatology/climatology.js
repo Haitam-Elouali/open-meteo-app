@@ -9,7 +9,7 @@
   const FETCH_CACHE_KEY = 'open-meteo-climatology-cache';
   const FETCH_CACHE_TTL = 10 * 60 * 1000;
 
-  function getLatLon() {
+  function getSavedLatLon() {
     try {
       const raw = localStorage.getItem('open-meteo-latlon');
       if (raw) {
@@ -19,7 +19,27 @@
         }
       }
     } catch (e) {}
-    return { lat: 31.6346, lon: -8.0779, name: 'Marrakech' };
+    return null;
+  }
+
+  // Resolve the chosen city/country to coordinates. Used when the lat/lon
+  // pair hasn't been persisted yet (e.g. a fresh domain) so we don't silently
+  // fall back to Marrakech.
+  async function resolveLatLonFromCity() {
+    try {
+      const city = localStorage.getItem('open-meteo-city');
+      const country = localStorage.getItem('open-meteo-country');
+      if (!city || !country) return null;
+      const qs = new URLSearchParams({ country, city, count: 1 });
+      const res = await fetch(`/api/location?${qs.toString()}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const match = data?.results && data.results[0];
+      if (match && Number.isFinite(Number(match.lat)) && Number.isFinite(Number(match.lon))) {
+        return { lat: Number(match.lat), lon: Number(match.lon), name: city };
+      }
+    } catch (e) {}
+    return null;
   }
 
   function iconId(code) {
@@ -150,6 +170,7 @@
     const dataBox = result && result.querySelector('.climatology-data');
     const errorBox = result && result.querySelector('.climatology-error');
 
+    clearNotice();
     if (result) result.hidden = false;
     if (loading) loading.hidden = true;
     if (errorBox) errorBox.hidden = true;
@@ -255,6 +276,7 @@
   }
 
   function renderError(msg) {
+    clearNotice();
     const result = $('#climatology-result');
     const loading = result && result.querySelector('.climatology-loading');
     const dataBox = result && result.querySelector('.climatology-data');
@@ -269,11 +291,37 @@
     }
   }
 
+  function renderNotice(msg) {
+    const notice = $('#climatology-notice');
+    if (!notice) return;
+    notice.hidden = false;
+    notice.textContent = msg || '';
+  }
+
+  function clearNotice() {
+    const notice = $('#climatology-notice');
+    if (!notice) return;
+    notice.hidden = true;
+    notice.textContent = '';
+  }
+
   async function loadClimatology() {
-    const latlon = getLatLon();
+    // Prefer the live selection the weather card keeps in sync (same source
+    // details.js uses), then the persisted pair, then resolve from the chosen
+    // city/country, and only then fall back to a default.
+    const live = window.__lastLatLon;
+    let latlon = null;
+    if (live && Number.isFinite(Number(live.lat)) && Number.isFinite(Number(live.lon))) {
+      latlon = { lat: Number(live.lat), lon: Number(live.lon) };
+    }
+    if (!latlon) latlon = getSavedLatLon();
+    if (!latlon) latlon = await resolveLatLonFromCity();
+
     if (!latlon) {
-      renderError('No location selected. Please choose a city first.');
-      return;
+      latlon = { lat: 34.261, lon: -6.5802, name: 'Rabat' };
+      renderNotice('No city selected — showing Rabat. Pick a city from the map/location button to change it.');
+    } else {
+      clearNotice();
     }
 
     const date = $('#climatology-date').value;

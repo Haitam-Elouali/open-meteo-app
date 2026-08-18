@@ -106,21 +106,33 @@ class LocationModal {
     }
     
     try {
-      const response = await fetch(`/api/location?country=${encodeURIComponent(country)}&name=${encodeURIComponent(city)}`);
+      const response = await fetch(`/api/location?country=${encodeURIComponent(country)}&city=${encodeURIComponent(city)}`);
       const data = await response.json();
-      
-      if (data.lat && data.lon) {
+      const match = data?.results && data.results[0];
+
+      if (match && Number.isFinite(Number(match.lat)) && Number.isFinite(Number(match.lon))) {
+        const lat = Number(match.lat);
+        const lon = Number(match.lon);
         this.close();
-        
-        const event = new CustomEvent('location-selected', {
-          detail: {
-            city: city,
-            country: country,
-            lat: data.lat,
-            lon: data.lon
-          }
-        });
-        document.dispatchEvent(event);
+
+        try {
+          localStorage.setItem('open-meteo-latlon', JSON.stringify({ lat, lon }));
+          localStorage.setItem('open-meteo-city', city);
+          localStorage.setItem('open-meteo-country', country);
+        } catch (e) { /* storage may be unavailable */ }
+
+        const detail = { city, country, lat, lon };
+
+        // The map page listens for this event.
+        document.dispatchEvent(new CustomEvent('location-selected', { detail }));
+
+        // The rest of the app (weather card, dashboard, details, climatology)
+        // listens for 'location:changed'. If we don't bridge it, selecting a
+        // city never updates those pages and climatology silently falls back
+        // to Marrakech.
+        window.dispatchEvent(new CustomEvent('location:changed', { detail }));
+      } else {
+        alert('No matching location found.');
       }
     } catch (e) {
       console.error('Location fetch failed:', e);
