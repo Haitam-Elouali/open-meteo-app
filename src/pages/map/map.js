@@ -335,6 +335,11 @@ async function onMapClick(e) {
 // that render as raster images in the tilePane, compatible with canvas weather tiles.
 function ensureBordersLayer() {
   if (bordersLayer) return;
+  // On satellite, labelsLayer already uses the same Esri tiles (borders +
+  // city labels), so a separate bordersLayer would be a wasteful duplicate.
+  // On the dark CARTO map, labelsLayer only has thin label text — the Esri
+  // tiles add the prominent white country borders the user wants.
+  if (state.basemap === 'satellite') return;
   bordersLayer = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 19, pane: 'labelPane', opacity: 0.85 }
@@ -370,6 +375,8 @@ async function init() {
   window.addEventListener('orientationchange', () => setTimeout(fitMapLayout, 300));
   setWeatherLayer();
   ensureLabelsLayer(); // keep labels/outlines above the weather overlay
+  ensureBordersLayer(); // white country borders always visible on top
+  if (bordersLayer && !map.hasLayer(bordersLayer)) bordersLayer.addTo(map);
   syncUrl();
 
   // The header geolocation picker fires 'location-selected' when the user
@@ -535,8 +542,7 @@ function clearWeatherLayer() {
   if (weatherLayer && map) map.removeLayer(weatherLayer);
   weatherLayer = null;
   weatherKind = null;
-  // Hide white borders when no weather layer is active.
-  if (bordersLayer && map && map.hasLayer(bordersLayer)) { map.removeLayer(bordersLayer); bordersLayer = null; }
+  // Borders stay visible independently — they are always-on for both basemaps.
 }
 
 // Decide which backend to use and (re)create the overlay for the active layer.
@@ -747,6 +753,15 @@ function setBasemap(which) {
   const tilePane = map.getPane('tilePane');
   if (tilePane) tilePane.style.filter = '';
   ensureLabelsLayer();
+  // Manage the standalone borders layer: needed on the dark CARTO map
+  // (which has only thin label text), redundant on satellite (Esri labels
+  // already include white country borders).
+  if (which === 'satellite') {
+    if (bordersLayer && map.hasLayer(bordersLayer)) map.removeLayer(bordersLayer);
+  } else {
+    ensureBordersLayer();
+    if (bordersLayer && !map.hasLayer(bordersLayer)) bordersLayer.addTo(map);
+  }
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
   );
