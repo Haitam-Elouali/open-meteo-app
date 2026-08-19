@@ -9,15 +9,23 @@ export const LAYERS = {
     unit: '°C',
     type: 'scalar',
     opaque: false,
+    opacity: 0.95,
+    // Very dark, high-contrast palette — must read on both light OSM and
+    // dark satellite basemaps.  Deep saturated tones with hard chromatic jumps.
     stops: [
-      [-40, '#3b4cc0'],
-      [-20, '#5a8dd6'],
-      [-10, '#8fc6e8'],
-      [0, '#cfeecb'],
-      [10, '#f7e08a'],
-      [20, '#f7a35a'],
-      [30, '#e3603b'],
-      [40, '#d6493b'],
+      [-40, '#1a0a8e'],
+      [-30, '#2919d4'],
+      [-20, '#3d5af1'],
+      [-10, '#1e90ff'],
+      [0, '#42d9c8'],
+      [5, '#6bcf4c'],
+      [10, '#d4e821'],
+      [15, '#f5c518'],
+      [20, '#f58a18'],
+      [25, '#ef6212'],
+      [30, '#e02020'],
+      [35, '#c01050'],
+      [40, '#8b0040'],
     ],
   },
   precipitation: {
@@ -27,12 +35,9 @@ export const LAYERS = {
     unit: 'mm',
     type: 'scalar',
     opaque: false,
-    // OpenWeatherMap's "classic rain" scale: a single blue ramp from a pale
-    // blue-gray for drizzle to deep royal blue for heavy rain (OWM's own
-    // legend stops are (110,110,205)@1mm -> (80,80,225)@10mm -> (20,20,255)
-    // @140mm). The old palette turned purple at the top, which no weather map
-    // shows for rain. Stops are dense at the low end because drizzle (0-2mm)
-    // is the common case and needs several distinct blues to read as a field.
+    opacity: 0.95,
+    // Dark blue ramp from light drizzle to heavy downpour — very saturated
+    // so it reads clearly on both light and dark basemaps.
     stops: [
       [0, 'rgba(130,165,255,0)'],
       [0.2, 'rgba(120,155,255,0.55)'],
@@ -43,9 +48,6 @@ export const LAYERS = {
       [25, 'rgba(28,44,202,0.95)'],
       [50, 'rgba(16,24,185,0.98)'],
     ],
-    // Legend tick positions: the stop values themselves, so each tick sits
-    // exactly under the color it names (equal-interval ticks would misplace
-    // them because the palette is densest at the low end).
     ticks: [0.2, 1, 2.5, 5, 10, 25, 50],
   },
   radar: {
@@ -55,16 +57,7 @@ export const LAYERS = {
     unit: 'dBZ',
     type: 'scalar',
     opaque: false,
-    // Real radar maps (Windy, RainViewer, NWS) display REFLECTIVITY in dBZ,
-    // not rain rate — plotting mm/h linearly compresses the common light-rain
-    // colors into a sliver and leaves the legend mostly red. Open-Meteo gives
-    // mm/h, so grid values are converted with the standard Z-R relation
-    // dBZ = 10*log10(200*R^1.6) before they hit the palette (see the
-    // `transform` below, applied by the tile renderer). Stops sit at the
-    // classic reflectivity levels: 20 dBZ light rain -> 25 -> 30 moderate ->
-    // 35 -> 40 heavy -> 45 -> 50+ dBZ extreme, green -> yellow -> orange ->
-    // red -> magenta, exactly the rainbow every radar app uses. Drizzle below
-    // ~15 dBZ stays transparent.
+    opacity: 0.95,
     transform: (mm) => (mm > 0 ? 10 * Math.log10(200 * Math.pow(mm, 1.6)) : -Infinity),
     stops: [
       [0, 'rgba(0,0,0,0)'],
@@ -78,27 +71,20 @@ export const LAYERS = {
       [50, '#c010c0'],
       [60, '#d020d0'],
     ],
-    // Legend tick positions: the dBZ levels themselves, so each tick sits
-    // exactly under the color it names.
-    ticks: [15, 20, 25, 30, 35, 40, 45, 50],
+    ticks: [15, 25, 35, 45, 50],
   },
   clouds: {
     id: 'clouds',
     label: 'Clouds',
     variable: 'cloud_cover',
     unit: '%',
-    type: 'scalar',
+    type: 'cloud-blob',
     opaque: false,
-    // Neon-blue clouds: a glowing blue wash instead of the classic white.
-    // Opacity still does the work — higher cloud cover reads as a more solid
-    // neon-blue blanket, while the geo overlay stays visible above it.
-    opacity: 0.95,
+    opacity: 0.98,
     stops: [
-      [0, 'rgba(0,195,255,0)'],
-      [25, 'rgba(0,195,255,0.5)'],
-      [50, 'rgba(0,170,255,0.8)'],
-      [75, 'rgba(0,140,255,0.95)'],
-      [100, 'rgba(0,110,255,1)'],
+      [0, 'rgba(255,255,255,0)'],
+      [50, 'rgba(255,255,255,0.8)'],
+      [100, 'rgba(255,255,255,1)'],
     ],
   },
   pressure: {
@@ -106,18 +92,22 @@ export const LAYERS = {
     label: 'Pressure',
     variable: 'pressure_msl',
     unit: 'hPa',
-    type: 'scalar',
+    type: 'isobar',
     opaque: false,
-    // Widen the interesting range (985-1035 hPa) so the typical 995-1030 band
-    // spans several distinct colors instead of collapsing into one olive wash.
+    // Contour levels every 4 hPa from 988 to 1036 — the classic synoptic
+    // chart convention. The colour is a subtle gradient applied to the lines
+    // themselves; the fill between them stays transparent.
+    contourStep: 4,
+    contourMin: 988,
+    contourMax: 1036,
     stops: [
-      [985, '#1e3a8a'],
-      [1000, '#2563eb'],
-      [1008, '#06b6d4'],
-      [1013, '#10b981'],
-      [1018, '#f59e0b'],
-      [1025, '#dc2626'],
-      [1035, '#7f1d1d'],
+      [988, '#1a3399'],
+      [1000, '#2266cc'],
+      [1008, '#2299cc'],
+      [1013, '#22aa66'],
+      [1020, '#cc8800'],
+      [1028, '#cc3300'],
+      [1036, '#991a1a'],
     ],
   },
   wind: {
@@ -125,10 +115,9 @@ export const LAYERS = {
     label: 'Wind',
     variable: 'wind_speed_10m',
     unit: 'km/h',
-    type: 'wind',
+    type: 'wind-arrow',
     opaque: false,
-    // OWM wind speed scale: blue (calm) → cyan → green → yellow → orange →
-    // red (storm). Range 0-100 km/h is the same 0-29 m/s window OWM shows.
+    opacity: 0.98,
     stops: [
       [0, '#3f51ff'],
       [10, '#00b3f0'],

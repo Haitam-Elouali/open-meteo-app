@@ -87,6 +87,42 @@
             </div>
         </div>
 
+        <!-- Weather info card (shown on map click) -->
+        <div class="map-weather-card" id="map-weather-card" hidden>
+            <button type="button" class="map-weather-card__close" id="map-weather-card-close">&times;</button>
+            <div class="map-weather-card__header">
+                <div class="map-weather-card__city" id="map-weather-card-city"></div>
+                <div class="map-weather-card__coords" id="map-weather-card-coords"></div>
+            </div>
+            <div class="map-weather-card__main">
+                <div class="map-weather-card__temp" id="map-weather-card-temp"></div>
+                <div class="map-weather-card__icon" id="map-weather-card-icon"></div>
+            </div>
+            <div class="map-weather-card__desc" id="map-weather-card-desc"></div>
+            <div class="map-weather-card__grid">
+                <div class="map-weather-card__item">
+                    <span class="map-weather-card__item-icon">🌡</span>
+                    <span class="map-weather-card__item-label">Feels like</span>
+                    <span class="map-weather-card__item-value" id="map-weather-card-feels"></span>
+                </div>
+                <div class="map-weather-card__item">
+                    <span class="map-weather-card__item-icon">💧</span>
+                    <span class="map-weather-card__item-label">Humidity</span>
+                    <span class="map-weather-card__item-value" id="map-weather-card-humidity"></span>
+                </div>
+                <div class="map-weather-card__item">
+                    <span class="map-weather-card__item-icon">💨</span>
+                    <span class="map-weather-card__item-label">Wind</span>
+                    <span class="map-weather-card__item-value" id="map-weather-card-wind"></span>
+                </div>
+                <div class="map-weather-card__item">
+                    <span class="map-weather-card__item-icon">🔽</span>
+                    <span class="map-weather-card__item-label">Pressure</span>
+                    <span class="map-weather-card__item-value" id="map-weather-card-pressure"></span>
+                </div>
+            </div>
+        </div>
+
         <!-- Modal control panel (auto height, hideable) -->
         <div class="map-modal" id="map-modal">
             <div class="map-modal__backdrop" id="map-modal-backdrop"></div>

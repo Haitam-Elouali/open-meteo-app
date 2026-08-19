@@ -318,7 +318,139 @@
     font-family: inherit;
 }
 
-@media (max-width: 800px) {
+/* IR satellite basemap: desaturate and boost contrast to simulate thermal
+   infrared imagery. */
+.leaflet-tile-ir {
+    filter: saturate(0) brightness(1.1) contrast(1.3);
+}
+
+/* ---------- Weather info card (top-right on click) ---------- */
+.map-weather-card {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 1100;
+    width: 240px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+    padding: 18px;
+    color: white;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05) inset;
+    pointer-events: auto;
+    animation: cardSlideIn 0.25s ease-out;
+}
+
+@keyframes cardSlideIn {
+    from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.map-weather-card[hidden] {
+    display: none;
+}
+
+.map-weather-card__close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    color: rgba(255,255,255,0.6);
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.map-weather-card__close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.map-weather-card__header {
+    margin-bottom: 8px;
+}
+
+.map-weather-card__city {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.map-weather-card__coords {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    font-variant-numeric: tabular-nums;
+    margin-top: 1px;
+}
+
+.map-weather-card__main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.map-weather-card__temp {
+    font-size: 42px;
+    font-weight: 200;
+    line-height: 1;
+    letter-spacing: -1px;
+}
+
+.map-weather-card__icon {
+    font-size: 36px;
+    line-height: 1;
+}
+
+.map-weather-card__desc {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+    margin-bottom: 14px;
+    font-weight: 400;
+}
+
+.map-weather-card__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.map-weather-card__item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+.map-weather-card__item-icon {
+    font-size: 14px;
+}
+
+.map-weather-card__item-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.map-weather-card__item-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 800px) {@media (max-width: 800px) {
     .map-modal {
         padding: 24px 12px;
     }

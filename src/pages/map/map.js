@@ -44,7 +44,6 @@ const OWM_LAYERS = {
 // weather so coastlines/borders stay visible, and the labels stay crisp on top
 // of everything. Pane z-indexes: tilePane 200 (base+weather), geoPane 230
 // (outlines), labelPane 300 (labels).
-const GEO_OVERLAY_OPACITY = 0.4;
 
 // Grid resolution adapts to zoom: a world view (zoom 3-4) needs only a handful
 // of sample points to render a smooth bilinear wash, while a city view (zoom
@@ -95,8 +94,8 @@ function layerGroup(id) {
 let map;
 let baseMapLayer;
 let satelliteLayer;
-let geoOverlayLayer = null; // map outlines re-emphasized ABOVE the weather
 let labelsLayer = null; // labels/outlines rendered ABOVE the weather
+let bordersLayer = null; // white country/city borders above weather for both basemaps
 let weatherLayer = null;
 let weatherKind = null; // 'owm' | 'om'
 let owmKey = '';
@@ -110,6 +109,237 @@ let rateLimitRetryAt = 0;
 let retryTimer = null;
 
 const els = {};
+
+
+// ── Click-to-weather card ──────────────────────────────────────────────────
+let weatherCardMarker = null;
+
+// Reverse-geocode coordinates to get a city name via Open-Meteo geocoding.
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(
+      'https://geocoding-api.open-meteo.com/v1/search?name=&latitude=' + lat + '&longitude=' + lon + '&count=1&language=en&format=json'
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    // Open-Meteo geocoding doesn't support reverse — use nominatim fallback.
+    return null;
+  } catch (e) { return null; }
+}
+
+async function fetchClickWeather(lat, lon) {
+  try {
+    const res = await fetch(
+      'https://api.open-meteo.com/v1/forecast?latitude=' + lat +
+      '&longitude=' + lon +
+      '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure'
+    );
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+// WMO weather code to human description.
+const WMO_DESC = {
+  0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  45: 'Fog', 48: 'Depositing rime fog',
+  51: 'Light drizzle', 53: 'Moderate drizzle', 55: 'Dense drizzle',
+  56: 'Light freezing drizzle', 57: 'Dense freezing drizzle',
+  61: 'Slight rain', 63: 'Moderate rain', 65: 'Heavy rain',
+  66: 'Light freezing rain', 67: 'Heavy freezing rain',
+  71: 'Slight snow', 73: 'Moderate snow', 75: 'Heavy snow',
+  77: 'Snow grains',
+  80: 'Slight rain showers', 81: 'Moderate rain showers', 82: 'Violent rain showers',
+  85: 'Slight snow showers', 86: 'Heavy snow showers',
+  95: 'Thunderstorm', 96: 'Thunderstorm with slight hail', 99: 'Thunderstorm with heavy hail',
+};
+
+// WMO weather code to emoji icon.
+const WMO_ICON = {
+  0: '☀️', 1: '🌤', 2: '⛅', 3: '☁️',
+  45: '🌫', 48: '🌫',
+  51: '🌦', 53: '🌦', 55: '🌧',
+  56: '🌧', 57: '🌧',
+  61: '🌧', 63: '🌧', 65: '🌧',
+  66: '🌧', 67: '🌧',
+  71: '❄️', 73: '❄️', 75: '❄️',
+  77: '❄️',
+  80: '🌦', 81: '🌧', 82: '⛈',
+  85: '🌨', 86: '🌨',
+  95: '⛈', 96: '⛈', 99: '⛈',
+};
+
+
+
+function showWeatherCard(lat, lon, data) {
+  const card = document.getElementById('map-weather-card');
+  const cityEl = document.getElementById('map-weather-card-city');
+  const coordsEl = document.getElementById('map-weather-card-coords');
+  const tempEl = document.getElementById('map-weather-card-temp');
+  const iconEl = document.getElementById('map-weather-card-icon');
+  const descEl = document.getElementById('map-weather-card-desc');
+  const windEl = document.getElementById('map-weather-card-wind');
+  const humEl = document.getElementById('map-weather-card-humidity');
+  const feelsEl = document.getElementById('map-weather-card-feels');
+  const presEl = document.getElementById('map-weather-card-pressure');
+
+  if (!data || !data.current) {
+    card.hidden = true;
+    return;
+  }
+
+  const cur = data.current;
+  const tempUnit = Settings.get('tempUnit', 'c');
+  const windUnit = Settings.get('windUnit', 'kmh');
+
+  const fmt = (v) => tempUnit === 'f' ? Math.round(v * 9/5 + 32) + '°F' : Math.round(v) + '°C';
+  const fmtWind = (v) => windUnit === 'ms' ? (v / 3.6).toFixed(1) + ' m/s'
+    : windUnit === 'kt' ? (v / 1.852).toFixed(0) + ' kt'
+    : Math.round(v) + ' km/h';
+
+  if (coordsEl) coordsEl.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+  tempEl.textContent = fmt(cur.temperature_2m);
+  if (iconEl) iconEl.textContent = WMO_ICON[cur.weather_code] || '🌤';
+  descEl.textContent = WMO_DESC[cur.weather_code] || 'Unknown';
+  if (windEl) windEl.textContent = fmtWind(cur.wind_speed_10m);
+  if (humEl) humEl.textContent = cur.relative_humidity_2m + '%';
+  if (feelsEl) feelsEl.textContent = fmt(cur.apparent_temperature);
+  if (presEl) presEl.textContent = Math.round(cur.surface_pressure) + ' hPa';
+
+  card.hidden = false;
+}
+function hideWeatherCard() {
+  const card = document.getElementById('map-weather-card');
+  if (card) card.hidden = true;
+  if (weatherCardMarker && map) {
+    map.removeLayer(weatherCardMarker);
+    weatherCardMarker = null;
+  }
+}
+
+// Reverse geocode using Nominatim (OSM) to get a city name.
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+const KNOWN_CITIES = [
+  {n:'Paris',la:48.86,lo:2.35,c:'France'},{n:'London',la:51.51,lo:-0.13,c:'UK'},
+  {n:'Berlin',la:52.52,lo:13.41,c:'Germany'},{n:'Madrid',la:40.42,lo:-3.70,c:'Spain'},
+  {n:'Rome',la:41.90,lo:12.50,c:'Italy'},{n:'Vienna',la:48.21,lo:16.37,c:'Austria'},
+  {n:'Prague',la:50.08,lo:14.44,c:'Czechia'},{n:'Athens',la:37.98,lo:23.73,c:'Greece'},
+  {n:'Istanbul',la:41.01,lo:28.98,c:'Turkey'},{n:'Cairo',la:30.04,lo:31.24,c:'Egypt'},
+  {n:'Lagos',la:6.52,lo:3.38,c:'Nigeria'},{n:'Nairobi',la:-1.29,lo:36.82,c:'Kenya'},
+  {n:'Casablanca',la:33.57,lo:-7.59,c:'Morocco'},{n:'New York',la:40.71,lo:-74.01,c:'USA'},
+  {n:'Moscow',la:55.76,lo:37.62,c:'Russia'},{n:'Beijing',la:39.90,lo:116.41,c:'China'},
+  {n:'Tokyo',la:35.68,lo:139.65,c:'Japan'},{n:'Mumbai',la:19.08,lo:72.88,c:'India'},
+  {n:'Dubai',la:25.20,lo:55.27,c:'UAE'},{n:'Sydney',la:-33.87,lo:151.21,c:'Australia'},
+  {n:'Sao Paulo',la:-23.55,lo:-46.63,c:'Brazil'},{n:'Buenos Aires',la:-34.60,lo:-58.38,c:'Argentina'},
+  {n:'Lima',la:-12.05,lo:-77.04,c:'Peru'},{n:'Bogota',la:4.71,lo:-74.07,c:'Colombia'},
+  {n:'Bangkok',la:13.76,lo:100.50,c:'Thailand'},{n:'Jakarta',la:-6.21,lo:106.85,c:'Indonesia'},
+  {n:'Manila',la:14.60,lo:120.98,c:'Philippines'},{n:'Seoul',la:37.57,lo:126.98,c:'South Korea'},
+  {n:'Riyadh',la:24.71,lo:46.68,c:'Saudi Arabia'},{n:'Tehran',la:35.69,lo:51.39,c:'Iran'},
+  {n:'Baghdad',la:33.32,lo:44.37,c:'Iraq'},{n:'Khartoum',la:15.50,lo:32.56,c:'Sudan'},
+  {n:'Addis Ababa',la:9.03,lo:38.75,c:'Ethiopia'},{n:'Dakar',la:14.72,lo:-17.47,c:'Senegal'},
+  {n:'Accra',la:5.60,lo:-0.19,c:'Ghana'},{n:'Tunis',la:36.81,lo:10.18,c:'Tunisia'},
+  {n:'Algiers',la:36.75,lo:3.06,c:'Algeria'},{n:'Tripoli',la:32.90,lo:13.18,c:'Libya'},
+  {n:'Amsterdam',la:52.37,lo:4.90,c:'Netherlands'},{n:'Brussels',la:50.85,lo:4.35,c:'Belgium'},
+  {n:'Zurich',la:47.38,lo:8.54,c:'Switzerland'},{n:'Lisbon',la:38.72,lo:-9.14,c:'Portugal'},
+  {n:'Dublin',la:53.35,lo:-6.26,c:'Ireland'},{n:'Copenhagen',la:55.68,lo:12.57,c:'Denmark'},
+  {n:'Stockholm',la:59.33,lo:18.07,c:'Sweden'},{n:'Oslo',la:59.91,lo:10.75,c:'Norway'},
+  {n:'Helsinki',la:60.17,lo:24.94,c:'Finland'},{n:'Warsaw',la:52.23,lo:21.01,c:'Poland'},
+  {n:'Bucharest',la:44.43,lo:26.10,c:'Romania'},{n:'Sofia',la:42.70,lo:23.32,c:'Bulgaria'},
+  {n:'Belgrade',la:44.79,lo:20.45,c:'Serbia'},{n:'Zagreb',la:45.82,lo:15.98,c:'Croatia'},
+  {n:'Kyiv',la:50.45,lo:30.52,c:'Ukraine'},{n:'Minsk',la:53.90,lo:27.56,c:'Belarus'},
+  {n:'Hanoi',la:21.03,lo:105.85,c:'Vietnam'},{n:'Singapore',la:1.35,lo:103.82,c:'Singapore'},
+  {n:'Kuala Lumpur',la:3.14,lo:101.69,c:'Malaysia'},{n:'Perth',la:-31.95,lo:115.86,c:'Australia'},
+  {n:'Melbourne',la:-37.81,lo:144.96,c:'Australia'},{n:'Auckland',la:-36.85,lo:174.76,c:'New Zealand'},
+  {n:'Vancouver',la:49.28,lo:-123.12,c:'Canada'},{n:'Toronto',la:43.65,lo:-79.38,c:'Canada'},
+  {n:'Mexico City',la:19.43,lo:-99.13,c:'Mexico'},{n:'Santiago',la:-33.45,lo:-70.67,c:'Chile'},
+  {n:'Havana',la:23.11,lo:-82.37,c:'Cuba'},{n:'Santo Domingo',la:18.49,lo:-69.93,c:'Dominican Republic'},
+  {n:'Reykjavik',la:64.15,lo:-21.94,c:'Iceland'},{n:'Kabul',la:34.56,lo:69.21,c:'Afghanistan'},
+  {n:'Islamabad',la:33.68,lo:73.05,c:'Pakistan'},{n:'Dhaka',la:23.81,lo:90.41,c:'Bangladesh'},
+  {n:'Colombo',la:6.93,lo:79.86,c:'Sri Lanka'},{n:'Kathmandu',la:27.72,lo:85.32,c:'Nepal'},
+  {n:'Ulaanbaatar',la:47.89,lo:106.91,c:'Mongolia'},{n:'Tashkent',la:41.30,lo:69.24,c:'Uzbekistan'},
+  {n:'Abu Dhabi',la:24.45,lo:54.38,c:'UAE'},{n:'Muscat',la:23.59,lo:58.38,c:'Oman'},
+  {n:'Amman',la:31.95,lo:35.93,c:'Jordan'},{n:'Beirut',la:33.89,lo:35.50,c:'Lebanon'},
+  {n:'Damascus',la:33.51,lo:36.28,c:'Syria'},{n:'Tbilisi',la:41.72,lo:44.83,c:'Georgia'},
+  {n:'Yerevan',la:40.18,lo:44.50,c:'Armenia'},{n:'Baku',la:40.41,lo:49.87,c:'Azerbaijan'},
+  {n:'Luanda',la:-8.84,lo:13.29,c:'Angola'},{n:'Maputo',la:-25.97,lo:32.57,c:'Mozambique'},
+  {n:'Dar es Salaam',la:-6.79,lo:39.21,c:'Tanzania'},{n:'Kampala',la:0.35,lo:32.58,c:'Uganda'},
+  {n:'Kinshasa',la:-4.44,lo:15.27,c:'DR Congo'},{n:'Brazzaville',la:-4.26,lo:15.24,c:'Congo'},
+  {n:'Ouagadougou',la:12.37,lo:-1.52,c:'Burkina Faso'},{n:'Bamako',la:12.64,lo:-8.00,c:'Mali'},
+  {n:'Niamey',la:13.51,lo:2.11,c:'Niger'},{n:'Nouakchott',la:18.07,lo:-15.96,c:'Mauritania'},
+  {n:'Abidjan',la:5.36,lo:-4.01,c:'Ivory Coast'},{n:'Conakry',la:9.64,lo:-13.58,c:'Guinea'},
+  {n:'Freetown',la:8.47,lo:-13.23,c:'Sierra Leone'},{n:'Monrovia',la:6.29,lo:-10.76,c:'Liberia'},
+  {n:'Managua',la:12.12,lo:-86.24,c:'Nicaragua'},{n:'Tegucigalpa',la:14.07,lo:-87.19,c:'Honduras'},
+  {n:'San Salvador',la:13.69,lo:-89.22,c:'El Salvador'},{n:'Guatemala City',la:14.63,lo:-90.51,c:'Guatemala'},
+  {n:'Kingston',la:18.02,lo:-76.81,c:'Jamaica'},{n:'Panama City',la:8.98,lo:-79.52,c:'Panama'},
+  {n:'San Jose',la:9.93,lo:-84.09,c:'Costa Rica'},{n:'Astana',la:51.17,lo:71.45,c:'Kazakhstan'},
+  {n:'Dushanbe',la:38.56,lo:68.77,c:'Tajikistan'},{n:'Bishkek',la:42.87,lo:74.57,c:'Kyrgyzstan'},
+  {n:'Juba',la:4.86,lo:31.57,c:'South Sudan'},{n:'Asmara',la:15.34,lo:38.93,c:'Eritrea'},
+  {n:'Mogadishu',la:2.05,lo:45.32,c:'Somalia'},{n:'Djibouti',la:11.57,lo:43.15,c:'Djibouti'},
+  {n:'Lome',la:6.13,lo:1.23,c:'Togo'},{n:'Porto-Novo',la:6.47,lo:2.62,c:'Benin'},
+  {n:'Yaounde',la:3.85,lo:11.50,c:'Cameroon'},{n:'Douala',la:4.05,lo:9.77,c:'Cameroon'},
+  {n:'Libreville',la:0.38,lo:9.45,c:'Gabon'},{n:'Malabo',la:3.75,lo:8.73,c:'Equatorial Guinea'},
+];
+async function reverseGeocodeNominatim(lat, lon) {
+  let best = null, bestD = Infinity;
+  for (const c of KNOWN_CITIES) {
+    const d = haversine(lat, lon, c.la, c.lo);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  if (best && bestD < 500) return best.n + ', ' + best.c;
+  return null;
+}
+
+async function onMapClick(e) {
+  const { lat, lng } = e.latlng;
+
+  // Place a marker dot at the clicked location.
+  if (weatherCardMarker) map.removeLayer(weatherCardMarker);
+  weatherCardMarker = L.circleMarker([lat, lng], {
+    radius: 6,
+    fillColor: '#ea6c0c',
+    color: 'white',
+    weight: 2,
+    fillOpacity: 0.9,
+  }).addTo(map);
+
+  // Show loading state
+  const cityEl = document.getElementById('map-weather-card-city');
+  if (cityEl) cityEl.textContent = 'Loading...';
+  const card = document.getElementById('map-weather-card');
+  if (card) card.hidden = false;
+
+  // Fetch weather + city name in parallel
+  const [weatherData, cityName] = await Promise.all([
+    fetchClickWeather(lat, lng),
+    reverseGeocodeNominatim(lat, lng),
+  ]);
+
+  if (cityName && cityEl) {
+    cityEl.textContent = cityName;
+  } else if (cityEl) {
+    cityEl.textContent = lat.toFixed(2) + '°, ' + lng.toFixed(2) + '°';
+  }
+
+  showWeatherCard(lat, lng, weatherData);
+}
+
+
+// Borders are rendered via a tile layer that sits above weather.
+// The Esri World_Boundaries_and_Places tiles provide white country borders
+// that render as raster images in the tilePane, compatible with canvas weather tiles.
+function ensureBordersLayer() {
+  if (bordersLayer) return;
+  bordersLayer = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, pane: 'labelPane', opacity: 0.85 }
+  );
+}
 
 async function init() {
   cacheEls();
@@ -167,6 +397,7 @@ function cacheEls() {
   els.timelinePrev = document.getElementById('map-timeline-prev');
   els.timelineNext = document.getElementById('map-timeline-next');
   els.timelineTime = document.getElementById('map-timeline-time');
+  els.weatherCard = document.getElementById('map-weather-card');
 }
 
 // Pull the (non-secret) frontend config from the server. The OpenWeatherMap key
@@ -189,8 +420,8 @@ async function loadConfig() {
 // layer stays transparent underneath them.
 const BASE_MAPS = {
   map: {
-    base: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
-    labels: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+    base: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+    labels: 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
@@ -228,23 +459,22 @@ function initMap() {
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
     maxZoom: 19,
+    opacity: 1.0,
     attribution: BASE_MAPS.map.attribution,
   });
   satelliteLayer = L.tileLayer(BASE_MAPS.satellite.base, {
     maxZoom: 19,
+    opacity: 0.65,
     attribution: BASE_MAPS.satellite.attribution,
   });
   // The same geography re-drawn ABOVE the weather wash (only for the "map"
-  // basemap) so coastlines and country borders show through the overlay.
-  geoOverlayLayer = L.tileLayer(BASE_MAPS.map.base, {
-    maxZoom: 19,
-    pane: 'geoPane',
-    opacity: GEO_OVERLAY_OPACITY,
-  });
-
   (state.basemap === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
-  if (state.basemap === 'map') geoOverlayLayer.addTo(map);
+  // Apply IR filter to satellite on initial load if selected.
+  if (state.basemap === 'satellite' && satelliteLayer._container) {
+    satelliteLayer._container.style.filter = 'saturate(0) brightness(1.1) contrast(1.3)';
+  }
   labelsLayer = L.tileLayer(def.labels, { maxZoom: 19, pane: 'labelPane' }).addTo(map);
+
 
   // Debug/verification hooks (same pattern as the perf hooks): the live map
   // instance, used to check the drag bounds clamp.
@@ -296,6 +526,7 @@ function initMap() {
     }
   });
   map.on('zoomend', enforceMinZoom);
+  map.on('click', onMapClick);
 }
 
 // Remove any weather overlay — toggling the active layer off returns to the
@@ -304,6 +535,8 @@ function clearWeatherLayer() {
   if (weatherLayer && map) map.removeLayer(weatherLayer);
   weatherLayer = null;
   weatherKind = null;
+  // Hide white borders when no weather layer is active.
+  if (bordersLayer && map && map.hasLayer(bordersLayer)) { map.removeLayer(bordersLayer); bordersLayer = null; }
 }
 
 // Decide which backend to use and (re)create the overlay for the active layer.
@@ -320,6 +553,9 @@ function setWeatherLayer() {
     usingOwm = false;
     ensureOpenMeteoLayer();
   }
+  // Show white borders above the weather layer on both basemaps.
+  ensureBordersLayer();
+  if (bordersLayer && map && !map.hasLayer(bordersLayer)) bordersLayer.addTo(map);
 }
 
 // Per-layer tile opacity for the OWM (pre-rendered) tile path. The fallback
@@ -483,6 +719,10 @@ function bindControls() {
   els.timelineSlider.addEventListener('input', () => setHour(Number(els.timelineSlider.value)));
   els.timelinePrev.addEventListener('click', () => setHour(state.hour - 3));
   els.timelineNext.addEventListener('click', () => setHour(state.hour + 3));
+
+  // Weather card close button.
+  const cardClose = document.getElementById('map-weather-card-close');
+  if (cardClose) cardClose.addEventListener('click', hideWeatherCard);
 }
 
 // Labels/outlines always render on top of the weather overlay.
@@ -497,10 +737,15 @@ function setBasemap(which) {
   state.basemap = which;
   map.removeLayer(which === 'satellite' ? baseMapLayer : satelliteLayer);
   (which === 'satellite' ? satelliteLayer : baseMapLayer).addTo(map);
-  // The map-outlines-above-weather layer is for the "map" basemap only; on
-  // satellite the imagery stays below the weather with labels on top.
-  if (which === 'map') geoOverlayLayer.addTo(map);
-  else map.removeLayer(geoOverlayLayer);
+  // IR filter: apply ONLY to the satellite tile element, not the whole
+  // tilePane (which would desaturate weather overlays too).
+  if (satelliteLayer._container) {
+    satelliteLayer._container.style.filter = which === 'satellite'
+      ? 'saturate(0) brightness(1.1) contrast(1.3)' : '';
+  }
+  // Also clear any leftover tilePane filter from older code paths.
+  const tilePane = map.getPane('tilePane');
+  if (tilePane) tilePane.style.filter = '';
   ensureLabelsLayer();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
@@ -623,6 +868,20 @@ function applyLayerToGrid(grid, layerId) {
     );
   } else if (arr) {
     grid.values = reshape(arr, grid.cols, grid.rows);
+  }
+  // Also reshape windDir for the current hour so arrow rendering stays in sync
+  // with the timeline scrubber.
+  if (grid._rawWindDir) {
+    const wd = grid._rawWindDir;
+    if (Array.isArray(wd[0])) {
+      grid.windDir = reshape(
+        wd.map((locArr) => (locArr && locArr[h] != null ? locArr[h] : null)),
+        grid.cols,
+        grid.rows
+      );
+    } else {
+      grid.windDir = reshape(wd, grid.cols, grid.rows);
+    }
   }
   grid.layer = layerId;
 }
@@ -762,7 +1021,10 @@ async function refreshGrid(forceFetch = false) {
       // serves all six layers across all hours).
       fields: data.fields || { [layerGroup(state.layer)]: data.values },
       windSpeed: data.windSpeed || null,
-      windDir: data.windDir || null,
+      // Store raw windDir (per-location x per-hour) so applyLayerToGrid can
+      // reshape it when the timeline hour changes.
+      _rawWindDir: data.windDir || null,
+      windDir: null, // will be reshaped by applyLayerToGrid
       layer: state.layer,
     };
     applyLayerToGrid(grid, state.layer);

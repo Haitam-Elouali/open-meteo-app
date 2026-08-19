@@ -24,6 +24,11 @@ import {
   normalizeLon,
   minZoomForHeight,
 } from '../src/pages/map/grid.js';
+import {
+  sampleField,
+  drawIsobars,
+  drawWindArrows,
+} from '../src/pages/map/weather-layer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAP_HTML = path.join(__dirname, '..', 'src', 'pages', 'map', 'index.html');
@@ -129,22 +134,19 @@ test('radar follows the classic reflectivity rainbow (green -> yellow -> orange 
   assert.ok(high.b > high.g, 'extreme rain should be magenta-ish (blue above green)');
 });
 
-test('clouds palette is neon blue (opacity does the work)', () => {
-  // Clouds are now a NEON-BLUE wash: the intensity of the cloud field is
-  // conveyed by opacity and a blue-dominant color cast, not by darkness. The
-  // blue reads on both the light map and the dark satellite basemap.
+test('clouds palette is white (satellite-like blobs)', () => {
+  // Clouds render as white satellite-like blobs.  The palette declares white
+  // stops; the actual rendering uses the custom cloud-blob mode.
   for (const v of [25, 50, 75, 100]) {
     const c = colorAt('clouds', v);
-    // Neon blue: blue channel clearly dominant over red and green.
-    assert.ok(c.b > c.r && c.b > c.g, `clouds at ${v}% should be blue-dominant, got rgb(${c.r},${c.g},${c.b})`);
-    assert.ok(c.b >= 110, `clouds at ${v}% should be a vivid blue, got b=${c.b}`);
-    assert.ok(c.a > 0.4, `clouds at ${v}% should be clearly visible (alpha ${c.a})`);
+    // White: all channels high and roughly equal.
+    assert.ok(c.r >= 200 && c.g >= 200 && c.b >= 200,
+      `clouds at ${v}% should be white, got rgb(${c.r},${c.g},${c.b})`);
+    assert.ok(c.a > 0.3, `clouds at ${v}% should be visible (alpha ${c.a})`);
   }
   assert.equal(colorAt('clouds', 0).a, 0, 'clear sky stays transparent');
   assert.equal(colorAt('clouds', 100).a, 1, 'full cloud cover is fully opaque');
-  // The layer also raises the tile alpha above the default 0.7 wash so the
-  // blanket reads as solid (the geo outlines still render above the weather).
-  assert.equal(getLayer('clouds').opacity, 0.95, 'clouds declare a high per-layer opacity');
+  assert.equal(getLayer('clouds').opacity, 0.98, 'clouds declare a high per-layer opacity');
 });
 
 test('pressure palette spreads the typical 995-1030 hPa band across colors', () => {
@@ -250,6 +252,101 @@ test('map page contains required controls and hide/reopen wiring', () => {
   assert.ok(doc.querySelector('script[src*="leaflet"]'), 'leaflet script missing');
   assert.ok(doc.querySelector('script[src*="map.js"]'), 'map.js module missing');
   assert.ok(doc.querySelector('a.header__nav-link[href="/map"]'), 'map nav link missing');
+});
+
+// ---------- Isobar / wind-arrow layer definitions ----------
+test('pressure layer declares isobar contour properties', () => {
+  const def = getLayer('pressure');
+  assert.equal(def.type, 'isobar', 'pressure type should be isobar');
+  assert.ok(def.contourStep > 0, 'contourStep must be positive');
+  assert.ok(def.contourMin < def.contourMax, 'contourMin must be < contourMax');
+  assert.ok(def.contourStep <= 10, 'contourStep should be small enough for readable lines');
+  // The typical surface pressure range (980-1040) should be covered.
+  assert.ok(def.contourMin <= 990, 'contourMin should cover low pressure');
+  assert.ok(def.contourMax >= 1030, 'contourMax should cover high pressure');
+});
+
+test('wind layer declares wind-arrow type', () => {
+  const def = getLayer('wind');
+  assert.equal(def.type, 'wind-arrow', 'wind type should be wind-arrow');
+  assert.ok(def.stops.length >= 2, 'wind needs >=2 palette stops');
+  // Palette range should cover calm to storm.
+  assert.equal(def.stops[0][0], 0, 'wind palette starts at 0 km/h');
+  assert.ok(def.stops[def.stops.length - 1][0] >= 80, 'wind palette extends to at least 80 km/h');
+});
+
+// ---------- sampleField bilinear interpolation ----------
+test('sampleField interpolates bilinearly like sampleGrid', () => {
+  const vals = [
+    [0, 10],
+    [0, 10],
+  ];
+  const v = sampleField(
+    vals, 40, 0, 0, 40, 2, 2, 20, 20
+  );
+  // Center should be 5 (same as sampleGrid test).
+  assert.equal(v, 5, 'sampleField center should be 5');
+});
+
+// ---------- drawIsobars smoke test ----------
+test('drawIsobars runs without errors on a mock canvas', () => {
+  // Mock canvas context with no-op methods.
+  const calls = [];
+  const ctx = {
+    lineWidth: 0, lineCap: '', lineJoin: '', strokeStyle: '',
+    beginPath() { calls.push('beginPath'); },
+    moveTo(x, y) { calls.push('moveTo'); },
+    lineTo(x, y) { calls.push('lineTo'); },
+    stroke() { calls.push('stroke'); },
+    save() {}, restore() {},
+    fillText() {},
+    font: '', textAlign: '', textBaseline: '', fillStyle: '',
+  };
+  // Simple gradient field: pressure increases from top-left to bottom-right.
+  const cols = 4, rows = 4;
+  const values = [];
+  for (let r = 0; r < rows; r++) {
+    values[r] = [];
+    for (let c = 0; c < cols; c++) values[r][c] = 995 + (r * cols + c) * 2;
+  }
+  const grid = { north: 50, south: 40, west: -10, east: 0, cols, rows, values };
+  const def = getLayer('pressure');
+  const bounds = { north: 50, south: 40, west: -10, east: 0 };
+  // Should not throw.
+  drawIsobars(ctx, grid, def, bounds, 256);
+  // Should have drawn at least some contour lines.
+  assert.ok(calls.includes('stroke'), 'drawIsobars should call stroke()');
+  assert.ok(calls.includes('beginPath'), 'drawIsobars should call beginPath()');
+});
+
+// ---------- drawWindArrows smoke test ----------
+test('drawWindArrows runs without errors on a mock canvas', () => {
+  const calls = [];
+  const ctx = {
+    lineWidth: 0, lineCap: '', lineJoin: '', strokeStyle: '',
+    beginPath() { calls.push('beginPath'); },
+    moveTo(x, y) { calls.push('moveTo'); },
+    lineTo(x, y) { calls.push('lineTo'); },
+    stroke() { calls.push('stroke'); },
+  };
+  const cols = 4, rows = 4;
+  const values = [], windDir = [];
+  for (let r = 0; r < rows; r++) {
+    values[r] = [];
+    windDir[r] = [];
+    for (let c = 0; c < cols; c++) {
+      values[r][c] = 10 + c * 5; // wind speed 10-25 km/h
+      windDir[r][c] = 180 + c * 30; // wind direction
+    }
+  }
+  const grid = {
+    north: 50, south: 40, west: -10, east: 0,
+    cols, rows, values, windDir,
+  };
+  const bounds = { north: 50, south: 40, west: -10, east: 0 };
+  drawWindArrows(ctx, grid, bounds, 256);
+  // Should have drawn at least some arrows (beginPath + stroke pairs).
+  assert.ok(calls.filter((c) => c === 'stroke').length >= 1, 'drawWindArrows should call stroke()');
 });
 
 // ---------- Performance benchmark ----------
