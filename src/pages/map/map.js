@@ -330,20 +330,36 @@ async function onMapClick(e) {
 }
 
 
-// Borders are rendered via a tile layer that sits above weather.
-// The Esri World_Boundaries_and_Places tiles provide white country borders
-// that render as raster images in the tilePane, compatible with canvas weather tiles.
-function ensureBordersLayer() {
+// White country borders: vector outlines rendered from Natural Earth GeoJSON
+// (complete world coverage, always on top of both basemaps and weather layers).
+let bordersGeoJson = null; // cached parsed GeoJSON data
+async function loadBordersGeoJson() {
+  if (bordersGeoJson) return bordersGeoJson;
+  try {
+    const res = await fetch('/static/countries.geojson');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    bordersGeoJson = await res.json();
+  } catch (e) {
+    console.warn('Failed to load country borders:', e);
+    bordersGeoJson = null;
+  }
+  return bordersGeoJson;
+}
+async function ensureBordersLayer() {
   if (bordersLayer) return;
-  // On satellite, labelsLayer already uses the same Esri tiles (borders +
-  // city labels), so a separate bordersLayer would be a wasteful duplicate.
-  // On the dark CARTO map, labelsLayer only has thin label text — the Esri
-  // tiles add the prominent white country borders the user wants.
-  if (state.basemap === 'satellite') return;
-  bordersLayer = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 19, pane: 'labelPane', opacity: 0.85 }
-  );
+  const geo = await loadBordersGeoJson();
+  if (!geo) return;
+  bordersLayer = L.geoJSON(geo, {
+    pane: 'borderPane',
+    style: {
+      color: 'rgba(255,255,255,0.85)',
+      weight: 1.6,
+      fillColor: 'transparent',
+      fillOpacity: 0,
+      interactive: false,
+    },
+  });
+  bordersLayer.addTo(map);
 }
 
 async function init() {
@@ -376,7 +392,6 @@ async function init() {
   setWeatherLayer();
   ensureLabelsLayer(); // keep labels/outlines above the weather overlay
   ensureBordersLayer(); // white country borders always visible on top
-  if (bordersLayer && !map.hasLayer(bordersLayer)) bordersLayer.addTo(map);
   syncUrl();
 
   // The header geolocation picker fires 'location-selected' when the user
@@ -462,6 +477,8 @@ function initMap() {
   map.getPane('geoPane').style.zIndex = '230';
   map.createPane('labelPane');
   map.getPane('labelPane').style.zIndex = '300';
+  map.createPane('borderPane');
+  map.getPane('borderPane').style.zIndex = '400';
 
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
@@ -561,7 +578,6 @@ function setWeatherLayer() {
   }
   // Show white borders above the weather layer on both basemaps.
   ensureBordersLayer();
-  if (bordersLayer && map && !map.hasLayer(bordersLayer)) bordersLayer.addTo(map);
 }
 
 // Per-layer tile opacity for the OWM (pre-rendered) tile path. The fallback
@@ -753,15 +769,9 @@ function setBasemap(which) {
   const tilePane = map.getPane('tilePane');
   if (tilePane) tilePane.style.filter = '';
   ensureLabelsLayer();
-  // Manage the standalone borders layer: needed on the dark CARTO map
-  // (which has only thin label text), redundant on satellite (Esri labels
-  // already include white country borders).
-  if (which === 'satellite') {
-    if (bordersLayer && map.hasLayer(bordersLayer)) map.removeLayer(bordersLayer);
-  } else {
-    ensureBordersLayer();
-    if (bordersLayer && !map.hasLayer(bordersLayer)) bordersLayer.addTo(map);
-  }
+  // Vector borders always stay on top regardless of basemap — no need to
+  // remove/re-add on switch. Just ensure they exist.
+  ensureBordersLayer();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
   );
