@@ -350,7 +350,7 @@
     border-radius: 18px;
     padding: 18px;
     color: white;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05) inset;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     pointer-events: auto;
     animation: cardSlideIn 0.25s ease-out;
 }

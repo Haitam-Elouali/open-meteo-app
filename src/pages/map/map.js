@@ -39,11 +39,12 @@ const OWM_LAYERS = {
   wind: 'wind_new',
 };
 
-// Compositing, OWM-style: base geography -> weather wash -> map outlines
-// (light_nolabels re-emphasized) -> labels. The map features sit ABOVE the
-// weather so coastlines/borders stay visible, and the labels stay crisp on top
-// of everything. Pane z-indexes: tilePane 200 (base+weather), geoPane 230
-// (outlines), labelPane 300 (labels).
+
+// Compositing, OWM-style: base geography -> weather wash -> labels -> country
+// borders. Pane z-indexes: tilePane 200 (base+weather), geoPane 230 (unused
+// legacy pane), labelPane 300 (place labels), borderPane 320 (country
+// borders, topmost of all so they're never obscured by labels or anything
+// else — the OWM reference map always draws borders as the very top layer).
 
 // Grid resolution adapts to zoom: a world view (zoom 3-4) needs only a handful
 // of sample points to render a smooth bilinear wash, while a city view (zoom
@@ -95,7 +96,6 @@ let map;
 let baseMapLayer;
 let satelliteLayer;
 let labelsLayer = null; // labels/outlines rendered ABOVE the weather
-let bordersLayer = null; // white country/city borders above weather for both basemaps
 let weatherLayer = null;
 let weatherKind = null; // 'owm' | 'om'
 let owmKey = '';
@@ -330,12 +330,22 @@ async function onMapClick(e) {
 }
 
 
-// ── White country/admin borders (OWM-style) ─────────────────────────────
+// ── Country/coastline borders (OWM-style) ───────────────────────────────
 // Vector outlines from Natural Earth 110m GeoJSON, rendered via Canvas for
-// performance.  Properties are stripped to reduce memory; the layer uses a
-// dedicated pane (z-index 260) that sits above weather tiles and below the
-// text-label pane so borders are always visible but never obscure place names.
+// performance. Properties are stripped to reduce memory. The layer lives in
+// its own pane ABOVE every other pane (including labels) so borders are
+// always the topmost, fully visible thing on the map.
+//
+// Leaflet's raster tile layers wrap horizontally forever because tiles are
+// addressed by (x, y, z) with x wrapped modulo 2^z — a single GeoJSON layer
+// has no such wrapping, it only exists at its literal longitudes. Panning one
+// world-width east/west would otherwise leave that repeated copy of the world
+// bare. We work around this by keeping one L.geoJSON per visible "world
+// copy" (each shifted by copyIndex*360° via a custom coordsToLatLng),
+// adding/removing copies as the user pans/zooms so borders cover the entire
+// world no matter how far it's panned.
 let bordersGeoJson = null;
+const borderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer
 
 // Strip heavy per-feature properties to shrink the in-memory footprint.
 // Only geometry is needed for the border strokes.
@@ -365,28 +375,37 @@ async function loadBordersGeoJson() {
   return bordersGeoJson;
 }
 
-// Zoom-dependent border styling: thinner/more transparent at world view,
-// slightly crisper when zoomed in.  Keeps the OWM professional feel.
+// Zoom-dependent border styling. OWM's own weathermap tiles bake solid,
+// near-opaque black coastline/country strokes directly into the raster, so
+// they stay crisp and legible over every colour in the palette — thin lines
+// at world view read as faint grey otherwise, so weight/opacity are pushed up
+// close to fully solid at every zoom instead of fading in from a washed-out
+// value.
 function _borderStyle(zoom) {
-  if (zoom <= 2) return { weight: 0.8, opacity: 0.65 };
-  if (zoom <= 4) return { weight: 1.0, opacity: 0.70 };
-  if (zoom <= 6) return { weight: 1.2, opacity: 0.75 };
-  return { weight: 1.4, opacity: 0.80 };
+  if (zoom <= 2) return { weight: 1.0, opacity: 0.9 };
+  if (zoom <= 4) return { weight: 1.1, opacity: 0.9 };
+  if (zoom <= 6) return { weight: 1.3, opacity: 0.92 };
+  return { weight: 1.6, opacity: 0.95 };
 }
 
-async function ensureBordersLayer() {
-  if (bordersLayer) return;
-  const geo = await loadBordersGeoJson();
-  if (!geo) return;
-  const z = map.getZoom();
-  const s = _borderStyle(z);
-  bordersLayer = L.geoJSON(geo, {
+function _makeBorderCopyLayer(copyIndex, s) {
+  const offset = copyIndex * 360;
+  return L.geoJSON(bordersGeoJson, {
     pane: 'borderPane',
-    renderer: L.canvas({ padding: 0.5 }),
+    // The renderer needs its OWN pane set too: Leaflet's Path layers use
+    // options.renderer directly when present (see L.Map#getRenderer), which
+    // bypasses the layer's own `pane` option entirely. Without this, the
+    // shared canvas renderer falls back to its default pane (overlayPane)
+    // and the borders silently render there instead of borderPane.
+    renderer: L.canvas({ pane: 'borderPane', padding: 0.5 }),
     interactive: false,
     bubblingMouseEvents: true,
+    // Shift every coordinate by a whole number of world-widths so this copy
+    // of the borders lines up with the corresponding repeated copy of the
+    // base map tiles.
+    coordsToLatLng: (coords) => L.latLng(coords[1], coords[0] + offset),
     style: {
-      color: '#ffffff',
+      color: '#000000',
       weight: s.weight,
       opacity: s.opacity,
       fillColor: 'transparent',
@@ -395,17 +414,49 @@ async function ensureBordersLayer() {
       lineJoin: 'round',
     },
   });
-  bordersLayer.addTo(map);
 }
 
-// Re-style the border strokes when the zoom level changes so weight and
-// opacity track the current view.  Called from the existing zoomend handler.
-function _updateBorderZoom() {
-  if (!bordersLayer || !bordersLayer.eachLayer) return;
+// Ensure a border-layer copy exists for every world repeat currently
+// touching the viewport (plus one extra copy of padding on each side so a
+// fast pan never outruns the render), and drop copies that have scrolled out
+// of view so the layer count stays bounded on a long pan.
+async function updateBorderCopies() {
+  if (!map) return;
+  if (!bordersGeoJson) {
+    const geo = await loadBordersGeoJson();
+    if (!geo) return;
+  }
+  const bounds = map.getBounds();
+  const minCopy = Math.floor(bounds.getWest() / 360) - 1;
+  const maxCopy = Math.ceil(bounds.getEast() / 360) + 1;
   const s = _borderStyle(map.getZoom());
-  bordersLayer.eachLayer((layer) => {
-    if (layer.setStyle) layer.setStyle({ weight: s.weight, opacity: s.opacity });
+
+  for (let c = minCopy; c <= maxCopy; c++) {
+    if (!borderCopyLayers.has(c)) {
+      const layer = _makeBorderCopyLayer(c, s);
+      layer.addTo(map);
+      borderCopyLayers.set(c, layer);
+    }
+  }
+  borderCopyLayers.forEach((layer, c) => {
+    if (c < minCopy || c > maxCopy) {
+      map.removeLayer(layer);
+      borderCopyLayers.delete(c);
+    }
   });
+}
+
+// Re-style every border copy when the zoom level changes so weight/opacity
+// track the current view, and top up copies for the (possibly wider) zoomed-
+// out view. Called from the existing zoomend handler.
+function _updateBorderZoom() {
+  const s = _borderStyle(map.getZoom());
+  borderCopyLayers.forEach((layer) => {
+    layer.eachLayer((l) => {
+      if (l.setStyle) l.setStyle({ weight: s.weight, opacity: s.opacity });
+    });
+  });
+  updateBorderCopies();
 }
 
 async function init() {
@@ -437,7 +488,7 @@ async function init() {
   window.addEventListener('orientationchange', () => setTimeout(fitMapLayout, 300));
   setWeatherLayer();
   ensureLabelsLayer(); // keep labels/outlines above the weather overlay
-  ensureBordersLayer(); // white country borders always visible on top
+  updateBorderCopies(); // dark country/coastline borders always visible on top
   syncUrl();
 
   // The header geolocation picker fires 'location-selected' when the user
@@ -495,9 +546,8 @@ const BASE_MAPS = {
   },
   satellite: {
     base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    labels:
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri',
+    labels: 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
+    attribution: 'Tiles &copy; Esri &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
 };
 
@@ -524,7 +574,7 @@ function initMap() {
   map.createPane('labelPane');
   map.getPane('labelPane').style.zIndex = '300';
   map.createPane('borderPane');
-  map.getPane('borderPane').style.zIndex = '260';
+  map.getPane('borderPane').style.zIndex = '320';
 
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
@@ -590,6 +640,7 @@ function initMap() {
     // Never settle below the zoom floor (mobile pinch-outs, orientation
     // changes, or a floor raised after the map already rendered).
     enforceMinZoom();
+    updateBorderCopies(); // top up border copies as new world-widths pan into view
     if (!usingOwm) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
@@ -622,8 +673,8 @@ function setWeatherLayer() {
     usingOwm = false;
     ensureOpenMeteoLayer();
   }
-  // Show white borders above the weather layer on both basemaps.
-  ensureBordersLayer();
+  // Show dark borders above the weather layer on both basemaps.
+  updateBorderCopies();
 }
 
 // Per-layer tile opacity for the OWM (pre-rendered) tile path. The fallback
@@ -817,7 +868,7 @@ function setBasemap(which) {
   ensureLabelsLayer();
   // Vector borders always stay on top regardless of basemap — no need to
   // remove/re-add on switch. Just ensure they exist.
-  ensureBordersLayer();
+  updateBorderCopies();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
   );
