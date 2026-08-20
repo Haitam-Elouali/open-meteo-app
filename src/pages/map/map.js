@@ -154,19 +154,24 @@ const WMO_DESC = {
   95: 'Thunderstorm', 96: 'Thunderstorm with slight hail', 99: 'Thunderstorm with heavy hail',
 };
 
-// WMO weather code to emoji icon.
+// WMO weather code to SVG icon path.
 const WMO_ICON = {
-  0: '☀️', 1: '🌤', 2: '⛅', 3: '☁️',
-  45: '🌫', 48: '🌫',
-  51: '🌦', 53: '🌦', 55: '🌧',
-  56: '🌧', 57: '🌧',
-  61: '🌧', 63: '🌧', 65: '🌧',
-  66: '🌧', 67: '🌧',
-  71: '❄️', 73: '❄️', 75: '❄️',
-  77: '❄️',
-  80: '🌦', 81: '🌧', 82: '⛈',
-  85: '🌨', 86: '🌨',
-  95: '⛈', 96: '⛈', 99: '⛈',
+  0: '/static/day.svg', 1: '/static/cloudy-day-1.svg',
+  2: '/static/cloudy-day-2.svg', 3: '/static/cloudy.svg',
+  45: '/static/cloudy.svg', 48: '/static/cloudy.svg',
+  51: '/static/rainy-1.svg', 53: '/static/rainy-2.svg',
+  55: '/static/rainy-3.svg',
+  56: '/static/rainy-4.svg', 57: '/static/rainy-5.svg',
+  61: '/static/rainy-4.svg', 63: '/static/rainy-5.svg',
+  65: '/static/rainy-6.svg',
+  66: '/static/rainy-6.svg', 67: '/static/rainy-7.svg',
+  71: '/static/snowy-1.svg', 73: '/static/snowy-2.svg',
+  75: '/static/snowy-3.svg', 77: '/static/snowy-4.svg',
+  80: '/static/rainy-2.svg', 81: '/static/rainy-5.svg',
+  82: '/static/rainy-7.svg',
+  85: '/static/snowy-5.svg', 86: '/static/snowy-6.svg',
+  95: '/static/thunder.svg', 96: '/static/thunder.svg',
+  99: '/static/thunder.svg',
 };
 
 
@@ -199,7 +204,7 @@ function showWeatherCard(lat, lon, data) {
 
   if (coordsEl) coordsEl.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
   tempEl.textContent = fmt(cur.temperature_2m);
-  if (iconEl) iconEl.textContent = WMO_ICON[cur.weather_code] || '🌤';
+  if (iconEl) iconEl.innerHTML = '<img src="' + (WMO_ICON[cur.weather_code] || '/static/cloudy-day-1.svg') + '" width="48" height="48" alt="weather icon">';
   descEl.textContent = WMO_DESC[cur.weather_code] || 'Unknown';
   if (windEl) windEl.textContent = fmtWind(cur.wind_speed_10m);
   if (humEl) humEl.textContent = cur.relative_humidity_2m + '%';
@@ -283,15 +288,154 @@ const KNOWN_CITIES = [
   {n:'Mogadishu',la:2.05,lo:45.32,c:'Somalia'},{n:'Djibouti',la:11.57,lo:43.15,c:'Djibouti'},
   {n:'Lome',la:6.13,lo:1.23,c:'Togo'},{n:'Porto-Novo',la:6.47,lo:2.62,c:'Benin'},
   {n:'Yaounde',la:3.85,lo:11.50,c:'Cameroon'},{n:'Douala',la:4.05,lo:9.77,c:'Cameroon'},
-  {n:'Libreville',la:0.38,lo:9.45,c:'Gabon'},{n:'Malabo',la:3.75,lo:8.73,c:'Equatorial Guinea'},
+  {n:'Libreville',la:0.38,lo:9.45,c:'Gabon'},  {n:'Malabo',la:3.75,lo:8.73,c:'Equatorial Guinea'},
+  // Additional cities for better coverage
+  // USA
+  {n:'Los Angeles',la:34.05,lo:-118.24,c:'USA'},{n:'Chicago',la:41.88,lo:-87.63,c:'USA'},
+  {n:'Houston',la:29.76,lo:-95.37,c:'USA'},{n:'Phoenix',la:33.45,lo:-112.07,c:'USA'},
+  {n:'Philadelphia',la:39.95,lo:-75.17,c:'USA'},{n:'San Antonio',la:29.42,lo:-98.49,c:'USA'},
+  {n:'San Diego',la:32.72,lo:-117.16,c:'USA'},{n:'Dallas',la:32.78,lo:-96.80,c:'USA'},
+  {n:'San Francisco',la:37.77,lo:-122.42,c:'USA'},{n:'Seattle',la:47.61,lo:-122.33,c:'USA'},
+  {n:'Denver',la:39.74,lo:-104.99,c:'USA'},{n:'Boston',la:42.36,lo:-71.06,c:'USA'},
+  {n:'Miami',la:25.76,lo:-80.19,c:'USA'},{n:'Atlanta',la:33.75,lo:-84.39,c:'USA'},
+  {n:'Minneapolis',la:44.98,lo:-93.27,c:'USA'},{n:'Detroit',la:42.33,lo:-83.05,c:'USA'},
+  {n:'Las Vegas',la:36.17,lo:-115.14,c:'USA'},{n:'Portland',la:45.52,lo:-122.68,c:'USA'},
+  // Canada
+  {n:'Montreal',la:45.50,lo:-73.57,c:'Canada'},{n:'Calgary',la:51.05,lo:-114.07,c:'Canada'},
+  {n:'Ottawa',la:45.42,lo:-75.70,c:'Canada'},{n:'Edmonton',la:53.55,lo:-113.49,c:'Canada'},
+  // Mexico & Central America
+  {n:'Guadalajara',la:20.67,lo:-103.35,c:'Mexico'},{n:'Monterrey',la:25.69,lo:-100.32,c:'Mexico'},
+  {n:'Cancun',la:21.16,lo:-86.85,c:'Mexico'},{n:'Belize City',la:17.50,lo:-88.20,c:'Belize'},
+  // South America
+  {n:'Rio de Janeiro',la:-22.91,lo:-43.17,c:'Brazil'},{n:'Brasilia',la:-15.79,lo:-47.88,c:'Brazil'},
+  {n:'Salvador',la:-12.97,lo:-38.51,c:'Brazil'},{n:'Recife',la:-8.05,lo:-34.87,c:'Brazil'},
+  {n:'Curitiba',la:-25.43,lo:-49.27,c:'Brazil'},{n:'Manaus',la:-3.12,lo:-60.02,c:'Brazil'},
+  {n:'Medellin',la:6.25,lo:-75.56,c:'Colombia'},{n:'Quito',la:-0.18,lo:-78.47,c:'Ecuador'},
+  {n:'Caracas',la:10.48,lo:-66.90,c:'Venezuela'},{n:'Georgetown',la:6.80,lo:-58.16,c:'Guyana'},
+  {n:'Paramaribo',la:5.85,lo:-55.20,c:'Suriname'},{n:'La Paz',la:-16.50,lo:-68.15,c:'Bolivia'},
+  {n:'Asuncion',la:-25.26,lo:-57.58,c:'Paraguay'},{n:'Montevideo',la:-34.90,lo:-56.19,c:'Uruguay'},
+  // Europe
+  {n:'Barcelona',la:41.39,lo:2.17,c:'Spain'},{n:'Valencia',la:39.47,lo:-0.38,c:'Spain'},
+  {n:'Seville',la:37.39,lo:-6.00,c:'Spain'},{n:'Milan',la:45.46,lo:9.19,c:'Italy'},
+  {n:'Naples',la:40.85,lo:14.27,c:'Italy'},{n:'Turin',la:45.07,lo:7.69,c:'Italy'},
+  {n:'Florence',la:43.77,lo:11.25,c:'Italy'},{n:'Marseille',la:43.30,lo:5.37,c:'France'},
+  {n:'Lyon',la:45.76,lo:4.84,c:'France'},{n:'Nice',la:43.71,lo:7.26,c:'France'},
+  {n:'Munich',la:48.14,lo:11.58,c:'Germany'},{n:'Hamburg',la:53.55,lo:9.99,c:'Germany'},
+  {n:'Frankfurt',la:50.11,lo:8.68,c:'Germany'},{n:'Cologne',la:50.94,lo:6.96,c:'Germany'},
+  {n:'Stuttgart',la:48.78,lo:9.18,c:'Germany'},{n:'Dresden',la:51.05,lo:13.74,c:'Germany'},
+  {n:'Edinburgh',la:55.95,lo:-3.19,c:'UK'},{n:'Manchester',la:53.48,lo:-2.24,c:'UK'},
+  {n:'Birmingham',la:52.49,lo:-1.89,c:'UK'},{n:'Glasgow',la:55.86,lo:-4.25,c:'UK'},
+  {n:'Liverpool',la:53.41,lo:-2.98,c:'UK'},{n:'Bristol',la:51.45,lo:-2.59,c:'UK'},
+  {n:'Krakow',la:50.06,lo:19.94,c:'Poland'},{n:'Gdansk',la:54.35,lo:18.65,c:'Poland'},
+  {n:'Wroclaw',la:51.11,lo:17.04,c:'Poland'},{n:'Lodz',la:51.75,lo:19.46,c:'Poland'},
+  {n:'Budapest',la:47.50,lo:19.04,c:'Hungary'},{n:'Debrecen',la:47.53,lo:21.63,c:'Hungary'},
+  {n:'Bratislava',la:48.15,lo:17.11,c:'Slovakia'},{n:'Ljubljana',la:46.06,lo:14.51,c:'Slovenia'},
+  {n:'Tirana',la:41.33,lo:19.82,c:'Albania'},{n:'Skopje',la:41.99,lo:21.43,c:'North Macedonia'},
+  {n:'Sarajevo',la:43.86,lo:18.41,c:'Bosnia & Herzegovina'},{n:'Podgorica',la:42.44,lo:19.26,c:'Montenegro'},
+  {n:'Chisinau',la:47.01,lo:28.86,c:'Moldova'},{n:'Tallinn',la:59.44,lo:24.75,c:'Estonia'},
+  {n:'Riga',la:56.95,lo:24.11,c:'Latvia'},{n:'Vilnius',la:54.69,lo:25.28,c:'Lithuania'},
+  {n:'Luxembourg',la:49.61,lo:6.13,c:'Luxembourg'},{n:'Monaco',la:43.73,lo:7.42,c:'Monaco'},
+  {n:'Valletta',la:35.90,lo:14.51,c:'Malta'},{n:'Nicosia',la:35.19,lo:33.38,c:'Cyprus'},
+  // Russia / Central Asia
+  {n:'St Petersburg',la:59.93,lo:30.32,c:'Russia'},{n:'Novosibirsk',la:55.04,lo:82.93,c:'Russia'},
+  {n:'Yekaterinburg',la:56.84,lo:60.60,c:'Russia'},{n:'Kazan',la:55.79,lo:49.11,c:'Russia'},
+  {n:'Samara',la:53.20,lo:50.15,c:'Russia'},{n:'Omsk',la:54.99,lo:73.37,c:'Russia'},
+  {n:'Almaty',la:43.24,lo:76.95,c:'Kazakhstan'},{n:'Nur-Sultan',la:51.13,lo:71.43,c:'Kazakhstan'},
+  {n:'Tbilisi',la:41.72,lo:44.83,c:'Georgia'},{n:'Samarkand',la:39.65,lo:66.96,c:'Uzbekistan'},
+  // Middle East
+  {n:'Doha',la:25.29,lo:51.53,c:'Qatar'},{n:'Kuwait City',la:29.38,lo:47.99,c:'Kuwait'},
+  {n:'Manama',la:26.23,lo:50.58,c:'Bahrain'},{n:'Sanaa',la:15.37,lo:44.19,c:'Yemen'},
+  {n:'Tel Aviv',la:32.09,lo:34.78,c:'Israel'},{n:'Jerusalem',la:31.77,lo:35.23,c:'Israel'},
+  // East Asia
+  {n:'Shanghai',la:31.23,lo:121.47,c:'China'},{n:'Guangzhou',la:23.13,lo:113.26,c:'China'},
+  {n:'Shenzhen',la:22.54,lo:114.06,c:'China'},{n:'Chengdu',la:30.57,lo:104.07,c:'China'},
+  {n:'Wuhan',la:30.59,lo:114.31,c:'China'},{n:'Hangzhou',la:30.27,lo:120.15,c:'China'},
+  {n:'Xi An',la:34.26,lo:108.94,c:'China'},{n:'Harbin',la:45.80,lo:126.53,c:'China'},
+  {n:'Hong Kong',la:22.32,lo:114.17,c:'China'},{n:'Taipei',la:25.03,lo:121.57,c:'Taiwan'},
+  {n:'Osaka',la:34.69,lo:135.50,c:'Japan'},{n:'Kyoto',la:35.01,lo:135.77,c:'Japan'},
+  {n:'Nagoya',la:35.18,lo:136.91,c:'Japan'},{n:'Sapporo',la:43.06,lo:141.35,c:'Japan'},
+  {n:'Fukuoka',la:33.59,lo:130.40,c:'Japan'},{n:'Busan',la:35.18,lo:129.08,c:'South Korea'},
+  {n:'Daegu',la:35.87,lo:128.60,c:'South Korea'},{n:'Incheon',la:37.46,lo:126.71,c:'South Korea'},
+  // South / Southeast Asia
+  {n:'Delhi',la:28.61,lo:77.23,c:'India'},{n:'Bangalore',la:12.97,lo:77.59,c:'India'},
+  {n:'Chennai',la:13.08,lo:80.27,c:'India'},{n:'Kolkata',la:22.57,lo:88.36,c:'India'},
+  {n:'Hyderabad',la:17.39,lo:78.49,c:'India'},{n:'Pune',la:18.52,lo:73.86,c:'India'},
+  {n:'Ahmedabad',la:23.02,lo:72.57,c:'India'},{n:'Jaipur',la:26.91,lo:75.79,c:'India'},
+  {n:'Lahore',la:31.55,lo:74.35,c:'Pakistan'},{n:'Karachi',la:24.86,lo:67.01,c:'Pakistan'},
+  {n:'Rangoon',la:16.87,lo:96.20,c:'Myanmar'},{n:'Phnom Penh',la:11.56,lo:104.92,c:'Cambodia'},
+  {n:'Vientiane',la:17.97,lo:102.63,c:'Laos'},
+
+  // Africa
+  {n:'Marrakech',la:31.63,lo:-8.00,c:'Morocco'},
+  {n:'Fes',la:34.03,lo:-5.00,c:'Morocco'},
+  {n:'Kumasi',la:6.69,lo:-1.62,c:'Ghana'},{n:'Kano',la:12.00,lo:8.52,c:'Nigeria'},
+  {n:'Abuja',la:9.06,lo:7.49,c:'Nigeria'},{n:'Ibadan',la:7.38,lo:3.94,c:'Nigeria'},
+  {n:'Cape Town',la:-33.93,lo:18.42,c:'South Africa'},{n:'Johannesburg',la:-26.20,lo:28.05,c:'South Africa'},
+  {n:'Durban',la:-29.86,lo:31.02,c:'South Africa'},{n:'Pretoria',la:-25.75,lo:28.19,c:'South Africa'},
+  {n:'Lusaka',la:-15.39,lo:28.32,c:'Zambia'},{n:'Harare',la:-17.83,lo:31.05,c:'Zimbabwe'},
+  {n:'Windhoek',la:-22.56,lo:17.08,c:'Namibia'},{n:'Gaborone',la:-24.63,lo:25.91,c:'Botswana'},
+  {n:'Antananarivo',la:-18.88,lo:47.51,c:'Madagascar'},{n:'Noumea',la:-22.28,lo:166.46,c:'New Caledonia'},
+  {n:'Lilongwe',la:-13.97,lo:33.79,c:'Malawi'},{n:'Bujumbura',la:-3.38,lo:29.36,c:'Burundi'},
+  {n:'Kigali',la:-1.94,lo:30.06,c:'Rwanda'},
+  {n:"N'Djamena",la:12.13,lo:15.05,c:'Chad'},{n:'Bangui',la:4.39,lo:18.56,c:'Central African Rep.'},
+  {n:'Libreville',la:0.38,lo:9.45,c:'Gabon'},{n:'Port-Gentil',la:-0.72,lo:8.78,c:'Gabon'},
+  {n:'Pointe-Noire',la:-4.77,lo:11.86,c:'Congo'},
+  {n:'Mombasa',la:-4.04,lo:39.67,c:'Kenya'},{n:'Addis Ababa',la:9.03,lo:38.75,c:'Ethiopia'},
+  {n:'Asmara',la:15.34,lo:38.93,c:'Eritrea'},{n:'Djibouti',la:11.57,lo:43.15,c:'Djibouti'},
+  // Oceania
+  {n:'Brisbane',la:-27.47,lo:153.03,c:'Australia'},{n:'Adelaide',la:-34.93,lo:138.60,c:'Australia'},
+  {n:'Canberra',la:-35.28,lo:149.13,c:'Australia'},{n:'Hobart',la:-42.88,lo:147.33,c:'Australia'},
+  {n:'Gold Coast',la:-28.02,lo:153.40,c:'Australia'},{n:'Darwin',la:-12.46,lo:130.84,c:'Australia'},
+  {n:'Christchurch',la:-43.53,lo:172.64,c:'New Zealand'},{n:'Wellington',la:-41.29,lo:174.78,c:'New Zealand'},
+  {n:'Hamilton',la:-37.79,lo:175.28,c:'New Zealand'},{n:'Suva',la:-18.14,lo:178.44,c:'Fiji'},
+  {n:'Port Moresby',la:-6.31,lo:143.95,c:'Papua New Guinea'},{n:'Apia',la:-13.83,lo:-171.76,c:'Samoa'},
+  // Caribbean
+  {n:'Nassau',la:25.05,lo:-77.34,c:'Bahamas'},{n:'Bridgetown',la:13.10,lo:-59.62,c:'Barbados'},
+  {n:'Port of Spain',la:10.65,lo:-61.50,c:'Trinidad & Tobago'},{n:'San Juan',la:18.47,lo:-66.11,c:'Puerto Rico'},
+  {n:'Santo Domingo',la:18.49,lo:-69.93,c:'Dominican Republic'},{n:'Kingston',la:18.02,lo:-76.81,c:'Jamaica'},
 ];
 async function reverseGeocodeNominatim(lat, lon) {
+  // 1) Fast local lookup — nearest city from the built-in list.
   let best = null, bestD = Infinity;
   for (const c of KNOWN_CITIES) {
     const d = haversine(lat, lon, c.la, c.lo);
     if (d < bestD) { bestD = d; best = c; }
   }
-  if (best && bestD < 500) return best.n + ', ' + best.c;
+  if (best && bestD < 300) return best.n + ', ' + best.c;
+  // If the nearest known city is very close, just use it.
+  if (best && bestD < 800) return best.n + ', ' + best.c;
+
+  // 2) Remote fallback: call the free Nominatim API (OSM) for reverse
+  //    geocoding. One request per click is fine — it's free & no key needed.
+  try {
+    const res = await fetch(
+      'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
+      lat + '&lon=' + lon + '&zoom=10&addressdetails=1',
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.address) {
+        const a = data.address;
+        const city = a.city || a.town || a.village || a.hamlet ||
+          a.municipality || a.county || a.state || '';
+        const country = a.country || '';
+        if (city && country) return city + ', ' + country;
+        if (city) return city;
+        if (country) return country;
+      }
+      if (data && data.display_name) {
+        // display_name is usually "Place, County, State, Country" — take
+        // the first two meaningful parts.
+        const parts = data.display_name.split(',').map(s => s.trim());
+        if (parts.length >= 2) return parts[0] + ', ' + parts[parts.length - 1];
+        if (parts.length === 1) return parts[0];
+      }
+    }
+  } catch (e) { /* ignore network errors */ }
+
+  // 3) Last resort: nearest city even if it's far away, or just coords.
+  if (best && bestD < 3000) return best.n + ', ' + best.c;
   return null;
 }
 
@@ -345,7 +489,8 @@ async function onMapClick(e) {
 // adding/removing copies as the user pans/zooms so borders cover the entire
 // world no matter how far it's panned.
 let bordersGeoJson = null;
-const borderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer
+const borderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (dark borders for map)
+const satBorderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (light borders for satellite)
 
 // Strip heavy per-feature properties to shrink the in-memory footprint.
 // Only geometry is needed for the border strokes.
@@ -375,21 +520,23 @@ async function loadBordersGeoJson() {
   return bordersGeoJson;
 }
 
-// Zoom-dependent border styling. OWM's own weathermap tiles bake solid,
-// near-opaque black coastline/country strokes directly into the raster, so
-// they stay crisp and legible over every colour in the palette — thin lines
-// at world view read as faint grey otherwise, so weight/opacity are pushed up
-// close to fully solid at every zoom instead of fading in from a washed-out
-// value.
+// Zoom-dependent border styling. Dark borders for the map basemap,
+// light/white borders for satellite so they're visible against the dark
+// imagery.
 function _borderStyle(zoom, basemap) {
-  const sat = basemap === 'satellite';
-  if (zoom <= 2) return { weight: sat ? 0.5 : 1.0, opacity: sat ? 0.7 : 0.9 };
-  if (zoom <= 4) return { weight: sat ? 0.6 : 1.1, opacity: sat ? 0.75 : 0.9 };
-  if (zoom <= 6) return { weight: sat ? 0.7 : 1.3, opacity: sat ? 0.8 : 0.92 };
-  return { weight: sat ? 0.8 : 1.6, opacity: sat ? 0.85 : 0.95 };
+  if (zoom <= 2) return { weight: 1.0, opacity: 0.9 };
+  if (zoom <= 4) return { weight: 1.1, opacity: 0.9 };
+  if (zoom <= 6) return { weight: 1.3, opacity: 0.92 };
+  return { weight: 1.6, opacity: 0.95 };
+}
+function _satBorderStyle(zoom) {
+  if (zoom <= 2) return { weight: 0.8, opacity: 0.55 };
+  if (zoom <= 4) return { weight: 0.9, opacity: 0.6 };
+  if (zoom <= 6) return { weight: 1.0, opacity: 0.65 };
+  return { weight: 1.1, opacity: 0.7 };
 }
 
-function _makeBorderCopyLayer(copyIndex, s) {
+function _makeBorderCopyLayer(copyIndex, s, color) {
   const offset = copyIndex * 360;
   return L.geoJSON(bordersGeoJson, {
     pane: 'borderPane',
@@ -406,7 +553,7 @@ function _makeBorderCopyLayer(copyIndex, s) {
     // base map tiles.
     coordsToLatLng: (coords) => L.latLng(coords[1], coords[0] + offset),
     style: {
-      color: '#000000',
+      color: color || '#000000',
       weight: s.weight,
       opacity: s.opacity,
       fillColor: 'transparent',
@@ -430,12 +577,15 @@ async function updateBorderCopies() {
   const bounds = map.getBounds();
   const minCopy = Math.floor(bounds.getWest() / 360) - 1;
   const maxCopy = Math.ceil(bounds.getEast() / 360) + 1;
-  const s = _borderStyle(map.getZoom(), state.basemap);
+  const s = _borderStyle(map.getZoom());
+  const satS = _satBorderStyle(map.getZoom());
+  const isSat = state.basemap === 'satellite';
 
+  // Dark borders for map basemap
   for (let c = minCopy; c <= maxCopy; c++) {
     if (!borderCopyLayers.has(c)) {
-      const layer = _makeBorderCopyLayer(c, s);
-      layer.addTo(map);
+      const layer = _makeBorderCopyLayer(c, s, '#000000');
+      if (!isSat) layer.addTo(map);
       borderCopyLayers.set(c, layer);
     }
   }
@@ -445,16 +595,37 @@ async function updateBorderCopies() {
       borderCopyLayers.delete(c);
     }
   });
+
+  // Light borders for satellite basemap
+  for (let c = minCopy; c <= maxCopy; c++) {
+    if (!satBorderCopyLayers.has(c)) {
+      const layer = _makeBorderCopyLayer(c, satS, '#000000');
+      if (isSat) layer.addTo(map);
+      satBorderCopyLayers.set(c, layer);
+    }
+  }
+  satBorderCopyLayers.forEach((layer, c) => {
+    if (c < minCopy || c > maxCopy) {
+      map.removeLayer(layer);
+      satBorderCopyLayers.delete(c);
+    }
+  });
 }
 
 // Re-style every border copy when the zoom level changes so weight/opacity
 // track the current view, and top up copies for the (possibly wider) zoomed-
 // out view. Called from the existing zoomend handler.
 function _updateBorderZoom() {
-  const s = _borderStyle(map.getZoom(), state.basemap);
+  const s = _borderStyle(map.getZoom());
+  const satS = _satBorderStyle(map.getZoom());
   borderCopyLayers.forEach((layer) => {
     layer.eachLayer((l) => {
       if (l.setStyle) l.setStyle({ weight: s.weight, opacity: s.opacity });
+    });
+  });
+  satBorderCopyLayers.forEach((layer) => {
+    layer.eachLayer((l) => {
+      if (l.setStyle) l.setStyle({ weight: satS.weight, opacity: satS.opacity });
     });
   });
   updateBorderCopies();
@@ -538,18 +709,20 @@ async function loadConfig() {
 // layer that sits ON TOP of the weather wash — the same compositing OWM's
 // weathermap uses, so borders and place names stay crisp while the weather
 // layer stays transparent underneath them.
-const BASE_MAPS = {
-  map: {
+const BASE_MAPS = {  map: {
     base: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
-    labels: 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
+    labels:
+      'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
+    labelFilter: 'drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)',
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
   satellite: {
     base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     labels:
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri',
+      'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
+    labelFilter: 'invert(1) brightness(1.5)',
+    attribution: 'Tiles &copy; Esri &copy; CARTO',
   },
 };
 
@@ -573,10 +746,10 @@ function initMap() {
   // weathermap compositing).
   map.createPane('geoPane');
   map.getPane('geoPane').style.zIndex = '230';
-  map.createPane('labelPane');
-  map.getPane('labelPane').style.zIndex = '300';
   map.createPane('borderPane');
-  map.getPane('borderPane').style.zIndex = '320';
+  map.getPane('borderPane').style.zIndex = '310';
+  map.createPane('labelPane');
+  map.getPane('labelPane').style.zIndex = '340';
 
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
@@ -596,6 +769,9 @@ function initMap() {
     satelliteLayer._container.style.filter = 'saturate(0) brightness(1.1) contrast(1.3)';
   }
   labelsLayer = L.tileLayer(def.labels, { maxZoom: 19, pane: 'labelPane' }).addTo(map);
+  // Apply label colour filter for the initial basemap.
+  const initLabelPane = map.getPane('labelPane');
+  if (initLabelPane) initLabelPane.style.filter = def.labelFilter || '';
 
 
   // Debug/verification hooks (same pattern as the perf hooks): the live map
@@ -851,6 +1027,9 @@ function ensureLabelsLayer() {
   if (labelsLayer) map.removeLayer(labelsLayer);
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   labelsLayer = L.tileLayer(def.labels, { maxZoom: 19, pane: 'labelPane' }).addTo(map);
+  // Apply label colour filter: satellite uses dark_only_labels inverted to white.
+  const pane = map.getPane('labelPane');
+  if (pane) pane.style.filter = def.labelFilter || '';
 }
 
 function setBasemap(which) {
@@ -868,8 +1047,14 @@ function setBasemap(which) {
   const tilePane = map.getPane('tilePane');
   if (tilePane) tilePane.style.filter = '';
   ensureLabelsLayer();
-  // Vector borders always stay on top regardless of basemap — no need to
-  // remove/re-add on switch. Just ensure they exist.
+  // Toggle the correct border set: dark for map, light for satellite.
+  const isSat = which === 'satellite';
+  borderCopyLayers.forEach((layer) => {
+    if (isSat) map.removeLayer(layer); else layer.addTo(map);
+  });
+  satBorderCopyLayers.forEach((layer) => {
+    if (isSat) layer.addTo(map); else map.removeLayer(layer);
+  });
   updateBorderCopies();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)

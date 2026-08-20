@@ -420,6 +420,14 @@
 .map-weather-card__icon {
     font-size: 36px;
     line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-weather-card__icon img {
+    width: 56px;
+    height: 56px;
 }
 
 .map-weather-card__desc {
