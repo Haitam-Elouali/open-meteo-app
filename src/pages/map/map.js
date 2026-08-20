@@ -381,11 +381,12 @@ async function loadBordersGeoJson() {
 // at world view read as faint grey otherwise, so weight/opacity are pushed up
 // close to fully solid at every zoom instead of fading in from a washed-out
 // value.
-function _borderStyle(zoom) {
-  if (zoom <= 2) return { weight: 1.0, opacity: 0.9 };
-  if (zoom <= 4) return { weight: 1.1, opacity: 0.9 };
-  if (zoom <= 6) return { weight: 1.3, opacity: 0.92 };
-  return { weight: 1.6, opacity: 0.95 };
+function _borderStyle(zoom, basemap) {
+  const sat = basemap === 'satellite';
+  if (zoom <= 2) return { weight: sat ? 0.5 : 1.0, opacity: sat ? 0.7 : 0.9 };
+  if (zoom <= 4) return { weight: sat ? 0.6 : 1.1, opacity: sat ? 0.75 : 0.9 };
+  if (zoom <= 6) return { weight: sat ? 0.7 : 1.3, opacity: sat ? 0.8 : 0.92 };
+  return { weight: sat ? 0.8 : 1.6, opacity: sat ? 0.85 : 0.95 };
 }
 
 function _makeBorderCopyLayer(copyIndex, s) {
@@ -410,8 +411,8 @@ function _makeBorderCopyLayer(copyIndex, s) {
       opacity: s.opacity,
       fillColor: 'transparent',
       fillOpacity: 0,
-      lineCap: 'round',
-      lineJoin: 'round',
+      lineCap: 'butt',
+      lineJoin: 'miter',
     },
   });
 }
@@ -429,7 +430,7 @@ async function updateBorderCopies() {
   const bounds = map.getBounds();
   const minCopy = Math.floor(bounds.getWest() / 360) - 1;
   const maxCopy = Math.ceil(bounds.getEast() / 360) + 1;
-  const s = _borderStyle(map.getZoom());
+  const s = _borderStyle(map.getZoom(), state.basemap);
 
   for (let c = minCopy; c <= maxCopy; c++) {
     if (!borderCopyLayers.has(c)) {
@@ -450,7 +451,7 @@ async function updateBorderCopies() {
 // track the current view, and top up copies for the (possibly wider) zoomed-
 // out view. Called from the existing zoomend handler.
 function _updateBorderZoom() {
-  const s = _borderStyle(map.getZoom());
+  const s = _borderStyle(map.getZoom(), state.basemap);
   borderCopyLayers.forEach((layer) => {
     layer.eachLayer((l) => {
       if (l.setStyle) l.setStyle({ weight: s.weight, opacity: s.opacity });
