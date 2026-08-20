@@ -422,13 +422,6 @@ function _makeBorderCopyLayer(copyIndex, s) {
 // of view so the layer count stays bounded on a long pan.
 async function updateBorderCopies() {
   if (!map) return;
-  // On satellite, the labels tile layer (Carto dark_only_labels) already
-  // provides dark borders — skip the GeoJSON overlay to avoid doubled lines.
-  if (state.basemap === 'satellite') {
-    borderCopyLayers.forEach((layer) => map.removeLayer(layer));
-    borderCopyLayers.clear();
-    return;
-  }
   if (!bordersGeoJson) {
     const geo = await loadBordersGeoJson();
     if (!geo) return;
@@ -553,8 +546,9 @@ const BASE_MAPS = {
   },
   satellite: {
     base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    labels: 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
-    attribution: 'Tiles &copy; Esri &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    labels:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
   },
 };
 
