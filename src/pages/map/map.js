@@ -330,36 +330,82 @@ async function onMapClick(e) {
 }
 
 
-// White country borders: vector outlines rendered from Natural Earth GeoJSON
-// (complete world coverage, always on top of both basemaps and weather layers).
-let bordersGeoJson = null; // cached parsed GeoJSON data
+// ── White country/admin borders (OWM-style) ─────────────────────────────
+// Vector outlines from Natural Earth 110m GeoJSON, rendered via Canvas for
+// performance.  Properties are stripped to reduce memory; the layer uses a
+// dedicated pane (z-index 260) that sits above weather tiles and below the
+// text-label pane so borders are always visible but never obscure place names.
+let bordersGeoJson = null;
+
+// Strip heavy per-feature properties to shrink the in-memory footprint.
+// Only geometry is needed for the border strokes.
+function _stripGeoProps(geo) {
+  if (!geo || !geo.features) return geo;
+  return {
+    type: 'FeatureCollection',
+    features: geo.features.map((f) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: f.geometry,
+    })),
+  };
+}
+
 async function loadBordersGeoJson() {
   if (bordersGeoJson) return bordersGeoJson;
   try {
     const res = await fetch('/static/countries.geojson');
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    bordersGeoJson = await res.json();
+    const raw = await res.json();
+    bordersGeoJson = _stripGeoProps(raw);
   } catch (e) {
     console.warn('Failed to load country borders:', e);
     bordersGeoJson = null;
   }
   return bordersGeoJson;
 }
+
+// Zoom-dependent border styling: thinner/more transparent at world view,
+// slightly crisper when zoomed in.  Keeps the OWM professional feel.
+function _borderStyle(zoom) {
+  if (zoom <= 2) return { weight: 0.8, opacity: 0.65 };
+  if (zoom <= 4) return { weight: 1.0, opacity: 0.70 };
+  if (zoom <= 6) return { weight: 1.2, opacity: 0.75 };
+  return { weight: 1.4, opacity: 0.80 };
+}
+
 async function ensureBordersLayer() {
   if (bordersLayer) return;
   const geo = await loadBordersGeoJson();
   if (!geo) return;
+  const z = map.getZoom();
+  const s = _borderStyle(z);
   bordersLayer = L.geoJSON(geo, {
     pane: 'borderPane',
+    renderer: L.canvas({ padding: 0.5 }),
+    interactive: false,
+    bubblingMouseEvents: true,
     style: {
-      color: 'rgba(255,255,255,0.85)',
-      weight: 1.6,
+      color: '#ffffff',
+      weight: s.weight,
+      opacity: s.opacity,
       fillColor: 'transparent',
       fillOpacity: 0,
-      interactive: false,
+      lineCap: 'round',
+      lineJoin: 'round',
     },
   });
   bordersLayer.addTo(map);
+}
+
+// Re-style the border strokes when the zoom level changes so weight and
+// opacity track the current view.  Called from the existing zoomend handler.
+function _updateBorderZoom() {
+  if (!bordersLayer || !bordersLayer.eachLayer) return;
+  const s = _borderStyle(map.getZoom());
+  bordersLayer.eachLayer((layer) => {
+    if (layer.setStyle) layer.setStyle({ weight: s.weight, opacity: s.opacity });
+  });
 }
 
 async function init() {
@@ -478,7 +524,7 @@ function initMap() {
   map.createPane('labelPane');
   map.getPane('labelPane').style.zIndex = '300';
   map.createPane('borderPane');
-  map.getPane('borderPane').style.zIndex = '400';
+  map.getPane('borderPane').style.zIndex = '260';
 
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
@@ -549,7 +595,7 @@ function initMap() {
       debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
     }
   });
-  map.on('zoomend', enforceMinZoom);
+  map.on('zoomend', () => { enforceMinZoom(); _updateBorderZoom(); });
   map.on('click', onMapClick);
 }
 
