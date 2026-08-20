@@ -422,6 +422,13 @@ function _makeBorderCopyLayer(copyIndex, s) {
 // of view so the layer count stays bounded on a long pan.
 async function updateBorderCopies() {
   if (!map) return;
+  // On satellite, the labels tile layer (Carto dark_only_labels) already
+  // provides dark borders — skip the GeoJSON overlay to avoid doubled lines.
+  if (state.basemap === 'satellite') {
+    borderCopyLayers.forEach((layer) => map.removeLayer(layer));
+    borderCopyLayers.clear();
+    return;
+  }
   if (!bordersGeoJson) {
     const geo = await loadBordersGeoJson();
     if (!geo) return;
