@@ -46,7 +46,7 @@
     background: rgba(15, 23, 42, 0.92);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid transparent;
     border-radius: 16px;
     padding: 18px 18px 20px;
     box-sizing: border-box;
@@ -92,7 +92,7 @@
     width: 44px;
     height: 44px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid transparent;
     background: rgba(15, 23, 42, 0.85);
     color: white;
     cursor: pointer;
@@ -146,7 +146,7 @@
 .map-layer-btn.is-active {
     background: white;
     color: #0f172a;
-    border-color: white;
+    border-color: transparent;
 }
 
 .map-basemaps {
@@ -185,7 +185,7 @@
     background: rgba(15, 23, 42, 0.82);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid transparent;
     border-radius: 12px;
     padding: 12px 14px;
     color: white;
@@ -266,7 +266,7 @@
     background: rgba(15, 23, 42, 0.82);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid transparent;
     border-radius: 999px;
     padding: 7px 12px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
@@ -318,6 +318,18 @@
     font-family: inherit;
 }
 
+/* Leaflet's own CSS already exempts .leaflet-tile-pane/.leaflet-marker-pane
+   img and .leaflet-overlay-pane svg from the app's global
+   `img, svg, canvas, video { max-width: 100% }` reset (see leaflet.css) —
+   but it never patches <canvas>, since Leaflet ships its own SVG renderer by
+   default. We render the country/coastline border layer with L.canvas() for
+   performance, so without this override the borders canvas collapses to
+   max-width: 100% of an intrinsically-zero-width pane and never paints. */
+.leaflet-container canvas {
+    max-width: none !important;
+    max-height: none !important;
+}
+
 /* IR satellite basemap: desaturate and boost contrast to simulate thermal
    infrared imagery. */
 .leaflet-tile-ir {
@@ -334,7 +346,7 @@
     background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid transparent;
     border-radius: 18px;
     padding: 18px;
     color: white;
@@ -450,7 +462,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 800px) {@media (max-width: 800px) {
+@media (max-width: 800px) {
     .map-modal {
         padding: 24px 12px;
     }

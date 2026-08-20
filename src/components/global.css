@@ -60,7 +60,7 @@ img, svg, canvas, video {
     background: rgba(15, 23, 42, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid transparent;
     border-radius: 20px;
     padding: 24px;
     width: 90%;
@@ -143,7 +143,7 @@ img, svg, canvas, video {
     width: 100%;
     padding: 10px 12px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid transparent;
     background-color: rgba(15, 23, 42, 0.6);
     color: white;
     outline: none;
@@ -196,7 +196,7 @@ img, svg, canvas, video {
     background: rgba(15, 23, 42, 0.55);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid transparent;
     border-radius: 20px;
     padding: 24px;
     width: 90%;
@@ -224,7 +224,7 @@ img, svg, canvas, video {
     width: 100%;
     padding: 10px 12px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid transparent;
     background-color: rgba(15, 23, 42, 0.6);
     color: white;
     outline: none;
