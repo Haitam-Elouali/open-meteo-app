@@ -441,12 +441,14 @@ async function reverseGeocodeNominatim(lat, lon) {
 
 async function onMapClick(e) {
   const { lat, lng } = e.latlng;
+  // Normalize longitude to [-180, 180] for API calls (panning can produce values outside this range)
+  const normLng = ((lng + 180) % 360 + 360) % 360 - 180;
 
   // Place a marker dot at the clicked location.
   if (weatherCardMarker) map.removeLayer(weatherCardMarker);
   weatherCardMarker = L.circleMarker([lat, lng], {
     radius: 6,
-    fillColor: '#ea6c0c',
+    fillColor: '#2196F3',
     color: 'white',
     weight: 2,
     fillOpacity: 0.9,
@@ -460,17 +462,17 @@ async function onMapClick(e) {
 
   // Fetch weather + city name in parallel
   const [weatherData, cityName] = await Promise.all([
-    fetchClickWeather(lat, lng),
-    reverseGeocodeNominatim(lat, lng),
+    fetchClickWeather(lat, normLng),
+    reverseGeocodeNominatim(lat, normLng),
   ]);
 
   if (cityName && cityEl) {
     cityEl.textContent = cityName;
   } else if (cityEl) {
-    cityEl.textContent = lat.toFixed(2) + '°, ' + lng.toFixed(2) + '°';
+    cityEl.textContent = lat.toFixed(2) + "°, " + normLng.toFixed(2) + "°";
   }
 
-  showWeatherCard(lat, lng, weatherData);
+  showWeatherCard(lat, normLng, weatherData);
 }
 
 
