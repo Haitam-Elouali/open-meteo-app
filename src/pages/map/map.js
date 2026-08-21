@@ -521,6 +521,21 @@ async function loadBordersGeoJson() {
   return bordersGeoJson;
 }
 
+
+async function loadStatesGeoJson() {
+  if (statesGeoJson) return statesGeoJson;
+  try {
+    const res = await fetch('/static/states.geojson');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = await res.json();
+    statesGeoJson = _stripGeoProps(raw);
+  } catch (e) {
+    console.warn('Failed to load state borders:', e);
+    statesGeoJson = null;
+  }
+  return statesGeoJson;
+}
+
 // Zoom-dependent border styling. Dark borders for both map and satellite basemaps.
 // Weight scales aggressively to cover/reinforce the grey border lines from
 // the CARTO dark tile labels at every zoom level.
@@ -615,17 +630,8 @@ function setBorderVisibility(show) {
   });
 }
 
-let _borderUpdatePending = false;
-let _borderUpdateTimer = null;
 async function updateBorderCopies() {
   if (!map) return;
-  // Debounce: if a call is already in-flight, schedule a re-check after it finishes
-  if (_borderUpdatePending) {
-    clearTimeout(_borderUpdateTimer);
-    _borderUpdateTimer = setTimeout(updateBorderCopies, 50);
-    return;
-  }
-  _borderUpdatePending = true;
   if (!bordersGeoJson) {
     const geo = await loadBordersGeoJson();
     if (!geo) return;
@@ -684,7 +690,6 @@ async function updateBorderCopies() {
     stateBorderCopyLayers.forEach((layer) => map.removeLayer(layer));
     stateBorderCopyLayers.clear();
   }
-  _borderUpdatePending = false;
 }
 
 // Re-style every border copy  when the zoom level changes so weight/opacity
@@ -898,7 +903,6 @@ function initMap() {
     // changes, or a floor raised after the map already rendered).
     enforceMinZoom();
     updateBorderCopies();
-    _updateBorderZoom(); // ensure styles track current zoom during pan
     if (!usingOwm) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
