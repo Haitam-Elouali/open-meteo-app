@@ -501,4 +501,47 @@
         height: 11px;
         font-size: 9px;
     }
+    /* Mobile: weather card just below legend */
+    .map-weather-card {
+        top: 78px;
+        right: 12px;
+        left: auto;
+        width: 180px;
+        padding: 12px;
+        border-radius: 14px;
+    }
+    .map-weather-card__temp {
+        font-size: 32px;
+    }
+    .map-weather-card__icon img {
+        width: 42px;
+        height: 42px;
+    }
+    .map-weather-card__city {
+        font-size: 13px;
+    }
+    .map-weather-card__coords {
+        font-size: 9px;
+    }
+    .map-weather-card__desc {
+        font-size: 11px;
+        margin-bottom: 8px;
+    }
+    .map-weather-card__grid {
+        gap: 6px;
+    }
+    .map-weather-card__item {
+        padding: 5px 7px;
+    }
+    .map-weather-card__item-label {
+        font-size: 8px;
+    }
+    .map-weather-card__item-value {
+        font-size: 12px;
+    }
+    .map-weather-card__close {
+        width: 22px;
+        height: 22px;
+        font-size: 13px;
+    }
 }

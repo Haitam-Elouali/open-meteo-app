@@ -341,7 +341,7 @@ const KNOWN_CITIES = [
   {n:'Yekaterinburg',la:56.84,lo:60.60,c:'Russia'},{n:'Kazan',la:55.79,lo:49.11,c:'Russia'},
   {n:'Samara',la:53.20,lo:50.15,c:'Russia'},{n:'Omsk',la:54.99,lo:73.37,c:'Russia'},
   {n:'Almaty',la:43.24,lo:76.95,c:'Kazakhstan'},{n:'Nur-Sultan',la:51.13,lo:71.43,c:'Kazakhstan'},
-  {n:'Tbilisi',la:41.72,lo:44.83,c:'Georgia'},{n:'Samarkand',la:39.65,lo:66.96,c:'Uzbekistan'},
+  {n:'Samarkand',la:39.65,lo:66.96,c:'Uzbekistan'},
   // Middle East
   {n:'Doha',la:25.29,lo:51.53,c:'Qatar'},{n:'Kuwait City',la:29.38,lo:47.99,c:'Kuwait'},
   {n:'Manama',la:26.23,lo:50.58,c:'Bahrain'},{n:'Sanaa',la:15.37,lo:44.19,c:'Yemen'},
@@ -368,7 +368,7 @@ const KNOWN_CITIES = [
   // Africa
   {n:'Marrakech',la:31.63,lo:-8.00,c:'Morocco'},
   {n:'Fes',la:34.03,lo:-5.00,c:'Morocco'},
-  {n:'Kumasi',la:6.69,lo:-1.62,c:'Ghana'},{n:'Kano',la:12.00,lo:8.52,c:'Nigeria'},
+  {n:'Kumasi',la:6.69,lo:-1.62,c:'Ghana'},{n:'Kano',la:12.00,lo:8.59,c:'Nigeria'},
   {n:'Abuja',la:9.06,lo:7.49,c:'Nigeria'},{n:'Ibadan',la:7.38,lo:3.94,c:'Nigeria'},
   {n:'Cape Town',la:-33.93,lo:18.42,c:'South Africa'},{n:'Johannesburg',la:-26.20,lo:28.05,c:'South Africa'},
   {n:'Durban',la:-29.86,lo:31.02,c:'South Africa'},{n:'Pretoria',la:-25.75,lo:28.19,c:'South Africa'},
@@ -376,12 +376,11 @@ const KNOWN_CITIES = [
   {n:'Windhoek',la:-22.56,lo:17.08,c:'Namibia'},{n:'Gaborone',la:-24.63,lo:25.91,c:'Botswana'},
   {n:'Antananarivo',la:-18.88,lo:47.51,c:'Madagascar'},{n:'Noumea',la:-22.28,lo:166.46,c:'New Caledonia'},
   {n:'Lilongwe',la:-13.97,lo:33.79,c:'Malawi'},{n:'Bujumbura',la:-3.38,lo:29.36,c:'Burundi'},
-  {n:'Kigali',la:-1.94,lo:30.06,c:'Rwanda'},
+  {n:'Kigali',la:-1.94,lo:29.87,c:'Rwanda'},
   {n:"N'Djamena",la:12.13,lo:15.05,c:'Chad'},{n:'Bangui',la:4.39,lo:18.56,c:'Central African Rep.'},
-  {n:'Libreville',la:0.38,lo:9.45,c:'Gabon'},{n:'Port-Gentil',la:-0.72,lo:8.78,c:'Gabon'},
+  {n:'Port-Gentil',la:-0.72,lo:8.78,c:'Gabon'},
   {n:'Pointe-Noire',la:-4.77,lo:11.86,c:'Congo'},
-  {n:'Mombasa',la:-4.04,lo:39.67,c:'Kenya'},{n:'Addis Ababa',la:9.03,lo:38.75,c:'Ethiopia'},
-  {n:'Asmara',la:15.34,lo:38.93,c:'Eritrea'},{n:'Djibouti',la:11.57,lo:43.15,c:'Djibouti'},
+  {n:'Mombasa',la:-4.04,lo:39.67,c:'Kenya'},
   // Oceania
   {n:'Brisbane',la:-27.47,lo:153.03,c:'Australia'},{n:'Adelaide',la:-34.93,lo:138.60,c:'Australia'},
   {n:'Canberra',la:-35.28,lo:149.13,c:'Australia'},{n:'Hobart',la:-42.88,lo:147.33,c:'Australia'},
@@ -390,9 +389,9 @@ const KNOWN_CITIES = [
   {n:'Hamilton',la:-37.79,lo:175.28,c:'New Zealand'},{n:'Suva',la:-18.14,lo:178.44,c:'Fiji'},
   {n:'Port Moresby',la:-6.31,lo:143.95,c:'Papua New Guinea'},{n:'Apia',la:-13.83,lo:-171.76,c:'Samoa'},
   // Caribbean
-  {n:'Nassau',la:25.05,lo:-77.34,c:'Bahamas'},{n:'Bridgetown',la:13.10,lo:-59.62,c:'Barbados'},
+  {n:'Nassau',la:25.03,lo:-77.40,c:'Bahamas'},{n:'Bridgetown',la:13.10,lo:-59.62,c:'Barbados'},
   {n:'Port of Spain',la:10.65,lo:-61.50,c:'Trinidad & Tobago'},{n:'San Juan',la:18.47,lo:-66.11,c:'Puerto Rico'},
-  {n:'Santo Domingo',la:18.49,lo:-69.93,c:'Dominican Republic'},{n:'Kingston',la:18.02,lo:-76.81,c:'Jamaica'},
+  
 ];
 async function reverseGeocodeNominatim(lat, lon) {
   // 1) Fast local lookup — nearest city from the built-in list.
@@ -720,7 +719,7 @@ function _updateBorderZoom() {
 async function init() {
   cacheEls();
   parseUrl();
-  await loadConfig();
+  await Promise.all([loadConfig(), loadBordersGeoJson()]);
   initMap();
   buildLayerButtons();
   bindControls();
@@ -746,7 +745,7 @@ async function init() {
   window.addEventListener('orientationchange', () => setTimeout(fitMapLayout, 300));
   setWeatherLayer();
   ensureLabelsLayer(); // keep labels/outlines above the weather overlay
-  updateBorderCopies(); // borders will be hidden until a weather layer is selected
+  await updateBorderCopies(); // pre-render borders so they appear on first paint
   syncUrl();
 
   // The header geolocation picker fires 'location-selected' when the user
@@ -1206,7 +1205,11 @@ function fitMapLayout() {
 // orientation change and container resize (header/ticker height changes,
 // mobile URL-bar collapse): the floor only helps if it tracks the container
 // the user is actually looking at.
+let _enforceGuard = false;
 function enforceMinZoom() {
+  if (_enforceGuard) return;
+  _enforceGuard = true;
+  try {
   if (!map || !map.setMinZoom) return;
   const layout = document.querySelector('.map-layout');
   if (!layout) return;
@@ -1236,6 +1239,7 @@ function enforceMinZoom() {
     if (center.lat > maxCenter) map.panTo([maxCenter, center.lng], { animate: false });
     else if (center.lat < -maxCenter) map.panTo([-maxCenter, center.lng], { animate: false });
   }
+  } finally { _enforceGuard = false; }
 }
 
 // Point the grid's active values at the requested layer (from the shared
