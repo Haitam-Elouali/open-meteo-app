@@ -615,15 +615,24 @@ function setBorderVisibility(show) {
   });
 }
 
+let _borderUpdatePending = false;
+let _borderUpdateTimer = null;
 async function updateBorderCopies() {
   if (!map) return;
+  // Debounce: if a call is already in-flight, schedule a re-check after it finishes
+  if (_borderUpdatePending) {
+    clearTimeout(_borderUpdateTimer);
+    _borderUpdateTimer = setTimeout(updateBorderCopies, 50);
+    return;
+  }
+  _borderUpdatePending = true;
   if (!bordersGeoJson) {
     const geo = await loadBordersGeoJson();
     if (!geo) return;
   }
   const bounds = map.getBounds();
-  const minCopy = Math.floor(bounds.getWest() / 360) - 1;
-  const maxCopy = Math.ceil(bounds.getEast() / 360) + 1;
+  const minCopy = Math.floor(bounds.getWest() / 360) - 2;
+  const maxCopy = Math.ceil(bounds.getEast() / 360) + 2;
   const s = _borderStyle(map.getZoom());
   const show = state.layer !== null;
 
@@ -675,6 +684,7 @@ async function updateBorderCopies() {
     stateBorderCopyLayers.forEach((layer) => map.removeLayer(layer));
     stateBorderCopyLayers.clear();
   }
+  _borderUpdatePending = false;
 }
 
 // Re-style every border copy  when the zoom level changes so weight/opacity
@@ -887,7 +897,8 @@ function initMap() {
     // Never settle below the zoom floor (mobile pinch-outs, orientation
     // changes, or a floor raised after the map already rendered).
     enforceMinZoom();
-    updateBorderCopies(); // top up border copies (visible only when weather layer active)
+    updateBorderCopies();
+    _updateBorderZoom(); // ensure styles track current zoom during pan
     if (!usingOwm) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
