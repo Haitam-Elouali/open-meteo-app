@@ -489,8 +489,9 @@ async function onMapClick(e) {
 // adding/removing copies as the user pans/zooms so borders cover the entire
 // world no matter how far it's panned.
 let bordersGeoJson = null;
-const borderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (dark borders for map)
-const satBorderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (light borders for satellite)
+const borderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (country borders)
+const stateBorderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (state/province borders)
+let statesGeoJson = null;
 
 // Strip heavy per-feature properties to shrink the in-memory footprint.
 // Only geometry is needed for the border strokes.
@@ -520,20 +521,52 @@ async function loadBordersGeoJson() {
   return bordersGeoJson;
 }
 
-// Zoom-dependent border styling. Dark borders for the map basemap,
-// light/white borders for satellite so they're visible against the dark
-// imagery.
-function _borderStyle(zoom, basemap) {
-  if (zoom <= 2) return { weight: 1.0, opacity: 0.9 };
-  if (zoom <= 4) return { weight: 1.1, opacity: 0.9 };
-  if (zoom <= 6) return { weight: 1.3, opacity: 0.92 };
-  return { weight: 1.6, opacity: 0.95 };
+// Zoom-dependent border styling. Dark borders for both map and satellite basemaps.
+// Weight scales aggressively to cover/reinforce the grey border lines from
+// the CARTO dark tile labels at every zoom level.
+function _borderStyle(zoom) {
+  if (zoom <= 2) return { weight: 1.5, opacity: 0.95 };
+  if (zoom <= 3) return { weight: 1.8, opacity: 0.95 };
+  if (zoom <= 4) return { weight: 2.0, opacity: 0.97 };
+  if (zoom <= 5) return { weight: 2.5, opacity: 0.97 };
+  if (zoom <= 6) return { weight: 3.0, opacity: 0.98 };
+  if (zoom <= 7) return { weight: 3.5, opacity: 0.98 };
+  if (zoom <= 8) return { weight: 4.0, opacity: 1.0 };
+  if (zoom <= 9) return { weight: 4.5, opacity: 1.0 };
+  if (zoom <= 10) return { weight: 5.0, opacity: 1.0 };
+  if (zoom <= 12) return { weight: 6.0, opacity: 1.0 };
+  if (zoom <= 14) return { weight: 7.0, opacity: 1.0 };
+  return { weight: 8.0, opacity: 1.0 };
 }
-function _satBorderStyle(zoom) {
-  if (zoom <= 2) return { weight: 0.8, opacity: 0.55 };
-  if (zoom <= 4) return { weight: 0.9, opacity: 0.6 };
-  if (zoom <= 6) return { weight: 1.0, opacity: 0.65 };
-  return { weight: 1.1, opacity: 0.7 };
+
+// State/province borders: lighter than country borders, only visible at zoom 5+.
+function _stateBorderStyle(zoom) {
+  if (zoom <= 5) return { weight: 1.5, opacity: 0.85 };
+  if (zoom <= 7) return { weight: 2.0, opacity: 0.9 };
+  if (zoom <= 9) return { weight: 2.5, opacity: 0.92 };
+  if (zoom <= 11) return { weight: 3.0, opacity: 0.95 };
+  if (zoom <= 13) return { weight: 3.5, opacity: 0.95 };
+  return { weight: 4.0, opacity: 0.95 };
+}
+
+function _makeGeoJsonLayer(geo, copyIndex, s, color) {
+  const offset = copyIndex * 360;
+  return L.geoJSON(geo, {
+    pane: 'borderPane',
+    renderer: L.canvas({ pane: 'borderPane', padding: 0.5 }),
+    interactive: false,
+    bubblingMouseEvents: true,
+    coordsToLatLng: (coords) => L.latLng(coords[1], coords[0] + offset),
+    style: {
+      color: color || '#000000',
+      weight: s.weight,
+      opacity: s.opacity,
+      fillColor: 'transparent',
+      fillOpacity: 0,
+      lineCap: 'butt',
+      lineJoin: 'miter',
+    },
+  });
 }
 
 function _makeBorderCopyLayer(copyIndex, s, color) {
@@ -568,6 +601,20 @@ function _makeBorderCopyLayer(copyIndex, s, color) {
 // touching the viewport (plus one extra copy of padding on each side so a
 // fast pan never outruns the render), and drop copies that have scrolled out
 // of view so the layer count stays bounded on a long pan.
+// Show/hide ALL border copies (country + state). Borders only render when
+// a weather layer is active — without a weather overlay the CARTO tiles
+// show their own border lines.
+function setBorderVisibility(show) {
+  borderCopyLayers.forEach((layer) => {
+    if (show && !map.hasLayer(layer)) layer.addTo(map);
+    else if (!show && map.hasLayer(layer)) map.removeLayer(layer);
+  });
+  stateBorderCopyLayers.forEach((layer) => {
+    if (show && !map.hasLayer(layer)) layer.addTo(map);
+    else if (!show && map.hasLayer(layer)) map.removeLayer(layer);
+  });
+}
+
 async function updateBorderCopies() {
   if (!map) return;
   if (!bordersGeoJson) {
@@ -578,14 +625,13 @@ async function updateBorderCopies() {
   const minCopy = Math.floor(bounds.getWest() / 360) - 1;
   const maxCopy = Math.ceil(bounds.getEast() / 360) + 1;
   const s = _borderStyle(map.getZoom());
-  const satS = _satBorderStyle(map.getZoom());
-  const isSat = state.basemap === 'satellite';
+  const show = state.layer !== null;
 
-  // Dark borders for map basemap
+  // Unified dark borders for both map and satellite basemaps
   for (let c = minCopy; c <= maxCopy; c++) {
     if (!borderCopyLayers.has(c)) {
       const layer = _makeBorderCopyLayer(c, s, '#000000');
-      if (!isSat) layer.addTo(map);
+      if (show) layer.addTo(map);
       borderCopyLayers.set(c, layer);
     }
   }
@@ -593,41 +639,64 @@ async function updateBorderCopies() {
     if (c < minCopy || c > maxCopy) {
       map.removeLayer(layer);
       borderCopyLayers.delete(c);
+    } else if (show && !map.hasLayer(layer)) {
+      layer.addTo(map);
+    } else if (!show && map.hasLayer(layer)) {
+      map.removeLayer(layer);
     }
   });
 
-  // Light borders for satellite basemap
-  for (let c = minCopy; c <= maxCopy; c++) {
-    if (!satBorderCopyLayers.has(c)) {
-      const layer = _makeBorderCopyLayer(c, satS, '#000000');
-      if (isSat) layer.addTo(map);
-      satBorderCopyLayers.set(c, layer);
+  // State/province borders: only at zoom 5+
+  const zoom = map.getZoom();
+  if (zoom >= 5) {
+    if (!statesGeoJson) await loadStatesGeoJson();
+    if (statesGeoJson) {
+      const ss = _stateBorderStyle(zoom);
+      for (let c = minCopy; c <= maxCopy; c++) {
+        if (!stateBorderCopyLayers.has(c)) {
+          const layer = _makeGeoJsonLayer(statesGeoJson, c, ss, "#000000");
+          if (show) layer.addTo(map);
+          stateBorderCopyLayers.set(c, layer);
+        }
+      }
+      stateBorderCopyLayers.forEach((layer, c) => {
+        if (c < minCopy || c > maxCopy) {
+          map.removeLayer(layer);
+          stateBorderCopyLayers.delete(c);
+        } else if (show && !map.hasLayer(layer)) {
+          layer.addTo(map);
+        } else if (!show && map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
     }
+  } else {
+    // Remove state borders when zoomed out past zoom 5
+    stateBorderCopyLayers.forEach((layer) => map.removeLayer(layer));
+    stateBorderCopyLayers.clear();
   }
-  satBorderCopyLayers.forEach((layer, c) => {
-    if (c < minCopy || c > maxCopy) {
-      map.removeLayer(layer);
-      satBorderCopyLayers.delete(c);
-    }
-  });
 }
 
-// Re-style every border copy when the zoom level changes so weight/opacity
+// Re-style every border copy  when the zoom level changes so weight/opacity
 // track the current view, and top up copies for the (possibly wider) zoomed-
 // out view. Called from the existing zoomend handler.
 function _updateBorderZoom() {
   const s = _borderStyle(map.getZoom());
-  const satS = _satBorderStyle(map.getZoom());
   borderCopyLayers.forEach((layer) => {
     layer.eachLayer((l) => {
       if (l.setStyle) l.setStyle({ weight: s.weight, opacity: s.opacity });
     });
   });
-  satBorderCopyLayers.forEach((layer) => {
-    layer.eachLayer((l) => {
-      if (l.setStyle) l.setStyle({ weight: satS.weight, opacity: satS.opacity });
+  // Also update state borders on zoom
+  const zoom = map.getZoom();
+  if (zoom >= 5 && statesGeoJson) {
+    const ss = _stateBorderStyle(zoom);
+    stateBorderCopyLayers.forEach((layer) => {
+      layer.eachLayer((l) => {
+        if (l.setStyle) l.setStyle({ weight: ss.weight, opacity: ss.opacity });
+      });
     });
-  });
+  }
   updateBorderCopies();
 }
 
@@ -660,7 +729,7 @@ async function init() {
   window.addEventListener('orientationchange', () => setTimeout(fitMapLayout, 300));
   setWeatherLayer();
   ensureLabelsLayer(); // keep labels/outlines above the weather overlay
-  updateBorderCopies(); // dark country/coastline borders always visible on top
+  updateBorderCopies(); // borders will be hidden until a weather layer is selected
   syncUrl();
 
   // The header geolocation picker fires 'location-selected' when the user
@@ -721,7 +790,7 @@ const BASE_MAPS = {  map: {
     base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     labels:
       'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
-    labelFilter: 'invert(1) brightness(1.5)',
+    labelFilter: 'drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)',
     attribution: 'Tiles &copy; Esri &copy; CARTO',
   },
 };
@@ -818,7 +887,7 @@ function initMap() {
     // Never settle below the zoom floor (mobile pinch-outs, orientation
     // changes, or a floor raised after the map already rendered).
     enforceMinZoom();
-    updateBorderCopies(); // top up border copies as new world-widths pan into view
+    updateBorderCopies(); // top up border copies (visible only when weather layer active)
     if (!usingOwm) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(refreshGrid, DEBOUNCE_MS);
@@ -851,7 +920,6 @@ function setWeatherLayer() {
     usingOwm = false;
     ensureOpenMeteoLayer();
   }
-  // Show dark borders above the weather layer on both basemaps.
   updateBorderCopies();
 }
 
@@ -1047,14 +1115,7 @@ function setBasemap(which) {
   const tilePane = map.getPane('tilePane');
   if (tilePane) tilePane.style.filter = '';
   ensureLabelsLayer();
-  // Toggle the correct border set: dark for map, light for satellite.
-  const isSat = which === 'satellite';
-  borderCopyLayers.forEach((layer) => {
-    if (isSat) map.removeLayer(layer); else layer.addTo(map);
-  });
-  satBorderCopyLayers.forEach((layer) => {
-    if (isSat) layer.addTo(map); else map.removeLayer(layer);
-  });
+  // Refresh border copies (visible only when a weather layer is active).
   updateBorderCopies();
   els.basemaps.querySelectorAll('[data-basemap]').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.basemap === which)
