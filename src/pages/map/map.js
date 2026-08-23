@@ -284,7 +284,7 @@ const KNOWN_CITIES = [
   {n:'Kingston',la:18.02,lo:-76.81,c:'Jamaica'},{n:'Panama City',la:8.98,lo:-79.52,c:'Panama'},
   {n:'San Jose',la:9.93,lo:-84.09,c:'Costa Rica'},{n:'Astana',la:51.17,lo:71.45,c:'Kazakhstan'},
   {n:'Dushanbe',la:38.56,lo:68.77,c:'Tajikistan'},{n:'Bishkek',la:42.87,lo:74.57,c:'Kyrgyzstan'},
-  {n:'Juba',la:4.86,lo:31.57,c:'South Sudan'},{n:'Asmara',la:15.34,lo:38.93,c:'Eritrea'},
+  {n:'Juba',la:4.86,lo:31.57,c:'South Sudan'},{n:'Asmara',la:15.34,lo:39.27,c:'Eritrea'},
   {n:'Mogadishu',la:2.05,lo:45.32,c:'Somalia'},{n:'Djibouti',la:11.57,lo:43.15,c:'Djibouti'},
   {n:'Lome',la:6.13,lo:1.23,c:'Togo'},{n:'Porto-Novo',la:6.47,lo:2.62,c:'Benin'},
   {n:'Yaounde',la:3.85,lo:11.50,c:'Cameroon'},{n:'Douala',la:4.05,lo:9.77,c:'Cameroon'},
@@ -340,7 +340,7 @@ const KNOWN_CITIES = [
   {n:'St Petersburg',la:59.93,lo:30.32,c:'Russia'},{n:'Novosibirsk',la:55.04,lo:82.93,c:'Russia'},
   {n:'Yekaterinburg',la:56.84,lo:60.60,c:'Russia'},{n:'Kazan',la:55.79,lo:49.11,c:'Russia'},
   {n:'Samara',la:53.20,lo:50.15,c:'Russia'},{n:'Omsk',la:54.99,lo:73.37,c:'Russia'},
-  {n:'Almaty',la:43.24,lo:76.95,c:'Kazakhstan'},{n:'Nur-Sultan',la:51.13,lo:71.43,c:'Kazakhstan'},
+  {n:'Almaty',la:43.24,lo:76.95,c:'Kazakhstan'},
   {n:'Samarkand',la:39.65,lo:66.96,c:'Uzbekistan'},
   // Middle East
   {n:'Doha',la:25.29,lo:51.53,c:'Qatar'},{n:'Kuwait City',la:29.38,lo:47.99,c:'Kuwait'},
@@ -392,6 +392,39 @@ const KNOWN_CITIES = [
   {n:'Nassau',la:25.03,lo:-77.40,c:'Bahamas'},{n:'Bridgetown',la:13.10,lo:-59.62,c:'Barbados'},
   {n:'Port of Spain',la:10.65,lo:-61.50,c:'Trinidad & Tobago'},{n:'San Juan',la:18.47,lo:-66.11,c:'Puerto Rico'},
   
+
+  // Morocco - filling gaps
+  {n:'Agadir',la:30.43,lo:-9.60,c:'Morocco'},{n:'Tangier',la:35.78,lo:-5.80,c:'Morocco'},
+  {n:'Rabat',la:34.02,lo:-6.84,c:'Morocco'},{n:'Dakhla',la:23.71,lo:-15.93,c:'Morocco'},
+  {n:'Ouarzazate',la:30.92,lo:-6.89,c:'Morocco'},{n:'Chefchaouen',la:35.17,lo:-5.27,c:'Morocco'},
+  // Southeast Asia
+  {n:'Ho Chi Minh City',la:10.82,lo:106.63,c:'Vietnam'},{n:'Chiang Mai',la:18.79,lo:98.98,c:'Thailand'},
+  {n:'Siem Reap',la:13.36,lo:103.86,c:'Cambodia'},{n:'Langkawi',la:6.35,lo:99.80,c:'Malaysia'},
+  {n:'Bali',la:-8.34,lo:115.09,c:'Indonesia'},{n:'Boracay',la:11.97,lo:121.93,c:'Philippines'},
+  {n:'Chiang Rai',la:19.91,lo:99.84,c:'Thailand'},{n:'George Town',la:5.42,lo:100.33,c:'Malaysia'},
+  {n:'Luang Prabang',la:19.89,lo:102.13,c:'Laos'},
+  // Central Asia
+  {n:'Karakol',la:42.49,lo:78.39,c:'Kyrgyzstan'},
+  // South America
+  {n:'Salta',la:-24.79,lo:-65.42,c:'Argentina'},{n:'Cusco',la:-13.53,lo:-71.97,c:'Peru'},
+  {n:'Cordoba',la:-31.42,lo:-64.18,c:'Argentina'},{n:'Mendoza',la:-32.89,lo:-68.83,c:'Argentina'},
+  {n:'Arequipa',la:-16.40,lo:-71.54,c:'Peru'},{n:'Puno',la:-15.84,lo:-70.02,c:'Peru'},
+  // Africa - filling gaps
+  {n:'Zinder',la:13.81,lo:8.99,c:'Niger'},{n:'Maradi',la:13.50,lo:7.10,c:'Niger'},
+  {n:'Timbuktu',la:16.77,lo:-3.01,c:'Mali'},
+  // Europe - filling gaps
+  {n:'Granada',la:37.18,lo:-3.60,c:'Spain'},{n:'Split',la:43.51,lo:16.44,c:'Croatia'},
+  {n:'Dubrovnik',la:42.65,lo:18.09,c:'Croatia'},
+  // USA - filling gaps
+  {n:'New Orleans',la:29.95,lo:-90.07,c:'USA'},{n:'Nashville',la:36.16,lo:-86.78,c:'USA'},
+  {n:'Austin',la:30.27,lo:-97.74,c:'USA'},
+  // Scandinavia
+  {n:'Bergen',la:60.39,lo:5.32,c:'Norway'},{n:'Tromso',la:69.65,lo:18.96,c:'Norway'},
+  {n:'Rovaniemi',la:66.50,lo:25.72,c:'Finland'},
+  // Middle East
+  {n:'Salalah',la:16.99,lo:54.09,c:'Oman'},
+  // Islands
+  {n:'Male',la:4.18,lo:73.51,c:'Maldives'},{n:'Zanzibar City',la:-6.16,lo:39.19,c:'Tanzania'}
 ];
 async function reverseGeocodeNominatim(lat, lon) {
   // 1) Fast local lookup — nearest city from the built-in list.
