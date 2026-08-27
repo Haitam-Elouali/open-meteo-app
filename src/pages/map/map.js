@@ -524,7 +524,8 @@ async function onMapClick(e) {
 // world no matter how far it's panned.
 let bordersGeoJson = null;
 const borderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (country borders)
-const stateBorderCopyLayers = new Map(); // copyIndex -> L.GeoJSON layer (state/province borders)
+const stateBorderCopyLayers = new Map();
+let _borderUpdatePending = false;
 let statesGeoJson = null;
 
 // Strip heavy per-feature properties to shrink the in-memory footprint.
@@ -658,74 +659,41 @@ function setBorderVisibility(show) {
     if (show && !map.hasLayer(layer)) layer.addTo(map);
     else if (!show && map.hasLayer(layer)) map.removeLayer(layer);
   });
-  stateBorderCopyLayers.forEach((layer) => {
-    if (show && !map.hasLayer(layer)) layer.addTo(map);
-    else if (!show && map.hasLayer(layer)) map.removeLayer(layer);
-  });
 }
 
 async function updateBorderCopies() {
   if (!map) return;
-  if (!bordersGeoJson) {
-    const geo = await loadBordersGeoJson();
-    if (!geo) return;
-  }
-  const bounds = map.getBounds();
-  const minCopy = Math.floor(bounds.getWest() / 360) - 2;
-  const maxCopy = Math.ceil(bounds.getEast() / 360) + 2;
-  const s = _borderStyle(map.getZoom());
-  const show = state.layer !== null;
-
-  // Unified dark borders for both map and satellite basemaps
-  for (let c = minCopy; c <= maxCopy; c++) {
-    if (!borderCopyLayers.has(c)) {
-      const layer = _makeBorderCopyLayer(c, s, '#000000');
-      if (show) layer.addTo(map);
-      borderCopyLayers.set(c, layer);
+  if (_borderUpdatePending) return;
+  _borderUpdatePending = true;
+  try {
+    if (!bordersGeoJson) {
+      const geo = await loadBordersGeoJson();
+      if (!geo) return;
     }
-  }
-  borderCopyLayers.forEach((layer, c) => {
-    if (c < minCopy || c > maxCopy) {
-      map.removeLayer(layer);
-      borderCopyLayers.delete(c);
-    } else if (show && !map.hasLayer(layer)) {
-      layer.addTo(map);
-    } else if (!show && map.hasLayer(layer)) {
-      map.removeLayer(layer);
-    }
-  });
-
-  // State/province borders: only at zoom 5+
-  const zoom = map.getZoom();
-  if (zoom >= 5) {
-    if (!statesGeoJson) await loadStatesGeoJson();
-    if (statesGeoJson) {
-      const ss = _stateBorderStyle(zoom);
-      for (let c = minCopy; c <= maxCopy; c++) {
-        if (!stateBorderCopyLayers.has(c)) {
-          const layer = _makeGeoJsonLayer(statesGeoJson, c, ss, "#000000");
-          if (show) layer.addTo(map);
-          stateBorderCopyLayers.set(c, layer);
-        }
+    const bounds = map.getBounds();
+    const minCopy = Math.floor(bounds.getWest() / 360) - 2;
+    const maxCopy = Math.ceil(bounds.getEast() / 360) + 2;
+    const s = _borderStyle(map.getZoom());
+    const show = state.layer !== null;
+    for (let c = minCopy; c <= maxCopy; c++) {
+      if (!borderCopyLayers.has(c)) {
+        const layer = _makeBorderCopyLayer(c, s, '#000000');
+        if (show) layer.addTo(map);
+        borderCopyLayers.set(c, layer);
       }
-      stateBorderCopyLayers.forEach((layer, c) => {
-        if (c < minCopy || c > maxCopy) {
-          map.removeLayer(layer);
-          stateBorderCopyLayers.delete(c);
-        } else if (show && !map.hasLayer(layer)) {
-          layer.addTo(map);
-        } else if (!show && map.hasLayer(layer)) {
-          map.removeLayer(layer);
-        }
-      });
     }
-  } else {
-    // Remove state borders when zoomed out past zoom 5
-    stateBorderCopyLayers.forEach((layer) => map.removeLayer(layer));
-    stateBorderCopyLayers.clear();
-  }
+    borderCopyLayers.forEach((layer, c) => {
+      if (c < minCopy || c > maxCopy) {
+        map.removeLayer(layer);
+        borderCopyLayers.delete(c);
+      } else if (show && !map.hasLayer(layer)) {
+        layer.addTo(map);
+      } else if (!show && map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+    });
+  } finally { _borderUpdatePending = false; }
 }
-
 // Re-style every border copy  when the zoom level changes so weight/opacity
 // track the current view, and top up copies for the (possibly wider) zoomed-
 // out view. Called from the existing zoomend handler.
@@ -736,17 +704,6 @@ function _updateBorderZoom() {
       if (l.setStyle) l.setStyle({ weight: s.weight, opacity: s.opacity });
     });
   });
-  // Also update state borders on zoom
-  const zoom = map.getZoom();
-  if (zoom >= 5 && statesGeoJson) {
-    const ss = _stateBorderStyle(zoom);
-    stateBorderCopyLayers.forEach((layer) => {
-      layer.eachLayer((l) => {
-        if (l.setStyle) l.setStyle({ weight: ss.weight, opacity: ss.opacity });
-      });
-    });
-  }
-  updateBorderCopies();
 }
 
 async function init() {
