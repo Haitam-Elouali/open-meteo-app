@@ -828,9 +828,9 @@ async function loadConfig() {
 // weathermap uses, so borders and place names stay crisp while the weather
 // layer stays transparent underneath them.
 const BASE_MAPS = {  map: {
-    base: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+    base: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png?key=cb1_2bu6_1_af6bd2c6d4f385eea2ce4169',
     labels:
-      'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
+      'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png?key=cb1_2bu6_1_af6bd2c6d4f385eea2ce4169',
     labelFilter: 'drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)',
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -838,7 +838,7 @@ const BASE_MAPS = {  map: {
   satellite: {
     base: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     labels:
-      'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png',
+      'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png?key=cb1_2bu6_1_af6bd2c6d4f385eea2ce4169',
     labelFilter: 'drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff)',
     attribution: 'Tiles &copy; Esri &copy; CARTO',
   },
@@ -867,7 +867,7 @@ function initMap() {
   map.createPane('borderPane');
   map.getPane('borderPane').style.zIndex = '310';
   map.createPane('labelPane');
-  map.getPane('labelPane').style.zIndex = '340';
+  map.getPane('labelPane').style.zIndex = '500';
 
   const def = BASE_MAPS[state.basemap] || BASE_MAPS.map;
   baseMapLayer = L.tileLayer(BASE_MAPS.map.base, {
